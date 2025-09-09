@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { Database } from '@/types/database.types'
+import { withValidation } from '@/lib/validation-middleware'
+import { withSecurity } from '@/lib/security-middleware'
+import { validationSchemas } from '@/lib/validation-schemas'
+import { RATE_LIMITS } from '@/lib/rate-limit'
 
-export async function GET(request: NextRequest) {
+export const GET = withSecurity(
+  withValidation({
+    querySchema: validationSchemas.auth.callback,
+    rateLimit: RATE_LIMITS.AUTH
+  })(async (request, { query }) => {
   const { searchParams, origin } = new URL(request.url)
-  const code = searchParams.get('code')
+  const { code } = query || {}
   const next = searchParams.get('next') ?? '/'
 
   if (code) {
@@ -51,4 +59,4 @@ export async function GET(request: NextRequest) {
 
   // Return the user to an error page with instructions
   return NextResponse.redirect(`${origin}/auth/signin?error=no_code`)
-}
+}))

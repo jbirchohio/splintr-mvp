@@ -90,10 +90,10 @@ export function FeedItem({ item, onView, onLaunch }: FeedItemProps) {
       {/* Story Metadata */}
       <div className="p-4">
         {/* Creator Info */}
-        <div className="flex items-center gap-3 mb-3">
+        <div className="flex items-center justify-between mb-3">
           <Link 
             href={`/profile/${item.creatorId}`}
-            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity group"
           >
             {item.creatorAvatar ? (
               <Image
@@ -101,21 +101,31 @@ export function FeedItem({ item, onView, onLaunch }: FeedItemProps) {
                 alt={item.creatorName}
                 width={32}
                 height={32}
-                className="rounded-full object-cover"
+                className="rounded-full object-cover ring-2 ring-transparent group-hover:ring-blue-200 transition-all"
               />
             ) : (
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center ring-2 ring-transparent group-hover:ring-blue-200 transition-all">
                 <span className="text-white text-sm font-medium">
                   {item.creatorName.charAt(0).toUpperCase()}
                 </span>
               </div>
             )}
             <div>
-              <p className="font-medium text-gray-900 text-sm">{item.creatorName}</p>
+              <p className="font-medium text-gray-900 text-sm group-hover:text-blue-600 transition-colors">
+                {item.creatorName}
+              </p>
               <p className="text-xs text-gray-500">
                 {formatDistanceToNow(new Date(item.publishedAt), { addSuffix: true })}
               </p>
             </div>
+          </Link>
+          
+          {/* Creator Profile Link Button */}
+          <Link
+            href={`/profile/${item.creatorId}`}
+            className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 rounded-md hover:bg-blue-50 transition-colors"
+          >
+            View Profile
           </Link>
         </div>
 

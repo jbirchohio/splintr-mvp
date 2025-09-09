@@ -134,10 +134,13 @@ describe('/api/stories/[id]/preview', () => {
       },
       moderationStatus: {
         contentId: 'story-123',
-        status: 'approved',
+        contentType: 'text' as const,
+        status: 'approved' as const,
         confidence: 0.1,
         categories: [],
-        reviewRequired: false
+        reviewRequired: false,
+        scanTimestamp: new Date(),
+        provider: 'openai' as const
       },
       isReadyToPublish: true
     }

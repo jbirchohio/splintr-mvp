@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { withValidation } from '@/lib/validation-middleware'
+import { withSecurity } from '@/lib/security-middleware'
+import { RATE_LIMITS } from '@/lib/rate-limit'
 
-export async function GET(request: NextRequest) {
+export const GET = withSecurity(
+  withValidation({
+    rateLimit: RATE_LIMITS.READ
+  })(async (request) => {
   try {
     const { data: { session }, error } = await supabase.auth.getSession()
     
@@ -44,4 +50,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+}))

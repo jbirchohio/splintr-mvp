@@ -128,8 +128,8 @@ describe('/api/stories', () => {
             isStartNode: true,
             isEndNode: false,
             choices: [
-              { text: 'Choice A', nextNodeId: 'node-2' },
-              { text: 'Choice B', nextNodeId: 'node-3' }
+              { id: 'choice-1', text: 'Choice A', nextNodeId: 'node-2' },
+              { id: 'choice-2', text: 'Choice B', nextNodeId: 'node-3' }
             ]
           },
           {

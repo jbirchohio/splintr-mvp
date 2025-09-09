@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { withValidation } from '@/lib/validation-middleware'
+import { withSecurity } from '@/lib/security-middleware'
+import { RATE_LIMITS } from '@/lib/rate-limit'
 
-export async function POST(request: NextRequest) {
+export const POST = withSecurity(
+  withValidation({
+    rateLimit: RATE_LIMITS.AUTH
+  })(async (request) => {
   try {
     const { error } = await supabase.auth.signOut()
     
@@ -21,4 +27,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+}))

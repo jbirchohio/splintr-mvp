@@ -1,43 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { withAuth } from '@/lib/auth-helpers'
 import { createServerClient } from '@/lib/supabase'
 import { Database } from '@/types/database.types'
+import { withValidation } from '@/lib/validation-middleware'
+import { withSecurity } from '@/lib/security-middleware'
+import { validationSchemas } from '@/lib/validation-schemas'
+import { RATE_LIMITS } from '@/lib/rate-limit'
+import { sanitizeFileUpload } from '@/lib/sanitization'
 
 type UserRow = Database['public']['Tables']['users']['Row']
 
 // POST /api/users/avatar - Upload user avatar
-export const POST = withAuth(async (request, user) => {
+export const POST = withSecurity(
+  withValidation({
+  formSchema: validationSchemas.user.avatarUpload,
+  requireAuth: true,
+  rateLimit: RATE_LIMITS.UPLOAD
+})(async (request, { form, user }) => {
   try {
-    const formData = await request.formData()
-    const file = formData.get('avatar') as File
-    
-    if (!file) {
-      return NextResponse.json(
-        { error: 'No file provided' },
-        { status: 400 }
-      )
-    }
+    const { avatar: file } = form
 
-    // Validate file type
+    // Additional file validation and sanitization
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json(
-        { error: 'Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.' },
-        { status: 400 }
-      )
-    }
-
-    // Validate file size (5MB max)
     const maxSize = 5 * 1024 * 1024 // 5MB
-    if (file.size > maxSize) {
+    
+    const fileValidation = sanitizeFileUpload(file, allowedTypes, maxSize)
+    if (!fileValidation.isValid) {
       return NextResponse.json(
-        { error: 'File too large. Maximum size is 5MB.' },
+        { 
+          error: 'File validation failed',
+          details: fileValidation.errors
+        },
         { status: 400 }
       )
     }
 
-    // Generate unique filename
-    const fileExt = file.name.split('.').pop()
+    // Generate unique filename using sanitized name
+    const fileExt = fileValidation.sanitizedName?.split('.').pop() || 'jpg'
     const fileName = `${user.id}-${Date.now()}.${fileExt}`
     const filePath = `avatars/${fileName}`
 
@@ -101,10 +99,14 @@ export const POST = withAuth(async (request, user) => {
       { status: 500 }
     )
   }
-})
+}))
 
 // DELETE /api/users/avatar - Remove user avatar
-export const DELETE = withAuth(async (request, user) => {
+export const DELETE = withSecurity(
+  withValidation({
+    requireAuth: true,
+    rateLimit: RATE_LIMITS.GENERAL
+  })(async (request, { user }) => {
   try {
     const supabase = createServerClient()
     
@@ -169,4 +171,4 @@ export const DELETE = withAuth(async (request, user) => {
       { status: 500 }
     )
   }
-})
+}))

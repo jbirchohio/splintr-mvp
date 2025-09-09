@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
+  const { pathname, protocol, host } = request.nextUrl
+
+  // Enforce HTTPS in production
+  if (process.env.NODE_ENV === 'production' && protocol === 'http:') {
+    return NextResponse.redirect(`https://${host}${pathname}${request.nextUrl.search}`)
+  }
 
   // Skip middleware for public routes and static files
   if (

@@ -55,12 +55,14 @@ describe('Story Publishing Workflow', () => {
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()
+    jest.clearAllMocks();
     
-    mockSupabase.auth.getUser.mockResolvedValue({
-      data: { user: mockUser },
-      error: null
-    })
+    (mockSupabase as any).auth = {
+      getUser: jest.fn().mockResolvedValue({
+        data: { user: mockUser },
+        error: null
+      })
+    }
   })
 
   describe('saveDraft', () => {

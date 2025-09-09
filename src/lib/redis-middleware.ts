@@ -74,7 +74,7 @@ export function withCache(
 
         // Try to get cached response
         const { cacheService } = await import('@/lib/redis')
-        const cachedResponse = await cacheService.get(cacheKey, true)
+        const cachedResponse = await cacheService.get(cacheKey)
 
         if (cachedResponse) {
           const cached = cachedResponse as any

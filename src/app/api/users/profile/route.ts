@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { withAuth } from '@/lib/auth-helpers'
 import { createServerClient } from '@/lib/supabase'
 import { Database } from '@/types/database.types'
-import { z } from 'zod'
+import { withValidation } from '@/lib/validation-middleware'
+import { withSecurity } from '@/lib/security-middleware'
+import { validationSchemas } from '@/lib/validation-schemas'
+import { RATE_LIMITS } from '@/lib/rate-limit'
 
 type UserRow = Database['public']['Tables']['users']['Row']
 
-// Validation schema for profile updates
-const updateProfileSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
-  avatar_url: z.string().url('Invalid avatar URL').optional().or(z.literal(''))
-})
-
 // GET /api/users/profile - Get current user profile
-export const GET = withAuth(async (request, user) => {
+export const GET = withSecurity(
+  withValidation({
+    requireAuth: true,
+    rateLimit: RATE_LIMITS.READ
+  })(async (request, { user }) => {
   try {
     const supabase = createServerClient()
     const { data: profile, error } = await supabase
@@ -49,26 +49,17 @@ export const GET = withAuth(async (request, user) => {
       { status: 500 }
     )
   }
-})
+}))
 
 // PUT /api/users/profile - Update user profile
-export const PUT = withAuth(async (request, user) => {
+export const PUT = withSecurity(
+  withValidation({
+    bodySchema: validationSchemas.user.updateProfile,
+    requireAuth: true,
+    rateLimit: RATE_LIMITS.GENERAL
+  })(async (request, { body, user }) => {
   try {
-    const body = await request.json()
-    
-    // Validate request body
-    const validation = updateProfileSchema.safeParse(body)
-    if (!validation.success) {
-      return NextResponse.json(
-        { 
-          error: 'Validation failed',
-          details: validation.error.issues
-        },
-        { status: 400 }
-      )
-    }
-
-    const { name, avatar_url } = validation.data
+    const { name, avatar_url } = body
 
     // Update profile in database
     const supabase = createServerClient()
@@ -113,4 +104,4 @@ export const PUT = withAuth(async (request, user) => {
       { status: 500 }
     )
   }
-})
+}))

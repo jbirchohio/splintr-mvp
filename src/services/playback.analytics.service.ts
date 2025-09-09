@@ -47,7 +47,7 @@ export class PlaybackAnalyticsService {
   private async incrementStoryViewCount(storyId: string): Promise<void> {
     try {
       const { error } = await supabase.rpc('increment_story_views', {
-        story_id: storyId
+        story_uuid: storyId
       })
 
       if (error) {
@@ -80,13 +80,13 @@ export class PlaybackAnalyticsService {
       }
 
       const totalViews = playthroughs.length
-      const completedPlaythroughs = playthroughs.filter(p => p.is_completed)
+      const completedPlaythroughs = playthroughs.filter(p => (p as any).is_completed)
       const completionRate = totalViews > 0 ? completedPlaythroughs.length / totalViews : 0
 
       // Calculate average duration (in milliseconds)
       const durations = playthroughs
-        .filter(p => p.total_duration)
-        .map(p => p.total_duration)
+        .filter(p => (p as any).total_duration !== null)
+        .map(p => (p as any).total_duration!)
       const averageDuration = durations.length > 0 
         ? durations.reduce((sum, duration) => sum + duration, 0) / durations.length
         : 0
@@ -94,7 +94,7 @@ export class PlaybackAnalyticsService {
       // Find popular paths
       const pathCounts = new Map<string, number>()
       playthroughs.forEach(playthrough => {
-        const pathKey = playthrough.path_taken.join('->')
+        const pathKey = (playthrough.path_taken as string[]).join('->')
         pathCounts.set(pathKey, (pathCounts.get(pathKey) || 0) + 1)
       })
 
@@ -106,8 +106,8 @@ export class PlaybackAnalyticsService {
       // Calculate choice distribution
       const choiceDistribution: Record<string, Record<string, number>> = {}
       playthroughs.forEach(playthrough => {
-        if (playthrough.choices_made) {
-          playthrough.choices_made.forEach((choice: ChoiceAnalytics) => {
+        if ((playthrough as any).choices_made) {
+          ((playthrough as any).choices_made as ChoiceAnalytics[]).forEach((choice: ChoiceAnalytics) => {
             if (!choiceDistribution[choice.nodeId]) {
               choiceDistribution[choice.nodeId] = {}
             }
@@ -202,8 +202,8 @@ export class PlaybackAnalyticsService {
       // Calculate top choices from recent playthroughs
       const choiceCounts = new Map<string, number>()
       recentPlaythroughs.forEach(playthrough => {
-        if (playthrough.choices_made) {
-          playthrough.choices_made.forEach((choice: ChoiceAnalytics) => {
+        if ((playthrough as any).choices_made) {
+          ((playthrough as any).choices_made as ChoiceAnalytics[]).forEach((choice: ChoiceAnalytics) => {
             const key = `${choice.nodeId}-${choice.choiceId}`
             choiceCounts.set(key, (choiceCounts.get(key) || 0) + 1)
           })

@@ -23,6 +23,14 @@ export const REDIS_KEYS = {
   FEED_CURSOR: (type: string, cursor: string) => `feed:${type}:cursor:${cursor}`,
   STORY_VIEWS: (storyId: string) => `story:views:${storyId}`,
   FEED_LAST_REFRESH: 'feed:last_refresh',
+  userSession: (userId: string) => `session:${userId}`,
+  publicFeed: (page: number, limit: number) => `feed:public:${page}:${limit}`,
+  creatorFeed: (creatorId: string, page: number, limit: number) => `feed:creator:${creatorId}:${page}:${limit}`,
+  story: (storyId: string) => `story:${storyId}`,
+  storyMetadata: (storyId: string) => `story:metadata:${storyId}`,
+  videoProcessingStatus: (videoId: string) => `video:processing:${videoId}`,
+  rateLimit: (identifier: string, endpoint: string) => `rate:${endpoint}:${identifier}`,
+  moderationResult: (contentId: string) => `moderation:${contentId}`,
 } as const;
 
 // Cache TTL values (in seconds)
@@ -32,6 +40,11 @@ export const CACHE_TTL = {
   FEED_CREATOR: 300, // 5 minutes
   STORY_VIEWS: 3600, // 1 hour
   FEED_REFRESH_LOCK: 60, // 1 minute
+  SHORT: 5 * 60, // 5 minutes
+  MEDIUM: 30 * 60, // 30 minutes
+  LONG: 2 * 60 * 60, // 2 hours
+  DAY: 24 * 60 * 60, // 24 hours
+  WEEK: 7 * 24 * 60 * 60, // 1 week
 } as const;
 
 // Redis connection event handlers
@@ -175,6 +188,53 @@ export class RedisCache {
       console.error(`Redis ZREVRANGE error for key ${key}:`, error);
       return [];
     }
+  }
+
+  /**
+   * Set expiration for a key
+   */
+  static async expire(key: string, ttl: number): Promise<boolean> {
+    try {
+      const result = await redis.expire(key, ttl);
+      return result === 1;
+    } catch (error) {
+      console.error(`Redis EXPIRE error for key ${key}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Delete a key (alias for del)
+   */
+  static async delete(key: string): Promise<boolean> {
+    try {
+      const result = await redis.del(key);
+      return result === 1;
+    } catch (error) {
+      console.error(`Redis DELETE error for key ${key}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Clear keys matching pattern (alias for delPattern)
+   */
+  static async clearPattern(pattern: string): Promise<void> {
+    return this.delPattern(pattern);
+  }
+
+  /**
+   * Increment a counter (alias for incr)
+   */
+  static async increment(key: string, ttl?: number): Promise<number> {
+    return this.incr(key, ttl);
+  }
+
+  /**
+   * Get Redis client for advanced operations
+   */
+  static getClient(): Redis {
+    return redis;
   }
 }
 

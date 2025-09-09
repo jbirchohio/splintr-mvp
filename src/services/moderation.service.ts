@@ -182,10 +182,10 @@ export class ModerationService {
         id: flag.id,
         contentType: flag.content_type as 'story' | 'video' | 'comment',
         contentId: flag.content_id,
-        reporterId: flag.reporter_id,
+        reporterId: flag.reporter_id || undefined,
         reason: flag.reason,
         status: flag.status as 'pending' | 'reviewed' | 'dismissed',
-        adminNotes: flag.admin_notes,
+        adminNotes: flag.admin_notes || undefined,
         createdAt: new Date(flag.created_at),
         reviewedAt: flag.reviewed_at ? new Date(flag.reviewed_at) : undefined
       }],

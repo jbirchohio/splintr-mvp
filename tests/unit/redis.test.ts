@@ -62,7 +62,7 @@ describe('Redis Configuration', () => {
     it('should handle JSON objects', async () => {
       const testObject = { id: 1, name: 'test' }
       await cacheService.set('test-object', testObject)
-      const value = await cacheService.get('test-object', true)
+      const value = await cacheService.get('test-object')
       expect(value).toEqual(testObject)
     })
 

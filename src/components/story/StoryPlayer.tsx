@@ -25,7 +25,8 @@ const getVideoById = async (videoId: string): Promise<VideoRecord> => {
       ...video,
       originalFilename: video.originalFilename || 'unknown',
       streamingUrl: video.streamingUrl || `/api/videos/${videoId}/stream`,
-      thumbnailUrl: video.thumbnailUrl || `/api/videos/${videoId}/thumbnail`
+      thumbnailUrl: video.thumbnailUrl || `/api/videos/${videoId}/thumbnail`,
+      moderationResult: video.moderationResult as Record<string, unknown> | null | undefined
     }
   } catch (error) {
     console.error('Failed to fetch video:', error)

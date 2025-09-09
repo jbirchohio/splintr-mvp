@@ -7,7 +7,7 @@ export class SessionCacheService {
   /**
    * Store user session data
    */
-  async setUserSession(userId: string, sessionData: any, ttl = CacheTTL.DAY): Promise<void> {
+  async setUserSession(userId: string, sessionData: unknown, ttl = CacheTTL.DAY): Promise<void> {
     const key = CacheKeys.userSession(userId)
     await cacheService.set(key, sessionData, ttl)
   }
@@ -15,9 +15,9 @@ export class SessionCacheService {
   /**
    * Get user session data
    */
-  async getUserSession<T = any>(userId: string): Promise<T | null> {
+  async getUserSession<T = Record<string, unknown>>(userId: string): Promise<T | null> {
     const key = CacheKeys.userSession(userId)
-    return await cacheService.get<T>(key, true)
+    return await cacheService.get<T>(key)
   }
 
   /**
@@ -44,7 +44,7 @@ export class FeedCacheService {
   /**
    * Cache public feed data
    */
-  async setPublicFeed(page: number, limit: number, feedData: any[], ttl = CacheTTL.MEDIUM): Promise<void> {
+  async setPublicFeed(page: number, limit: number, feedData: unknown[], ttl = CacheTTL.MEDIUM): Promise<void> {
     const key = CacheKeys.publicFeed(page, limit)
     await cacheService.set(key, feedData, ttl)
   }
@@ -52,15 +52,15 @@ export class FeedCacheService {
   /**
    * Get cached public feed data
    */
-  async getPublicFeed<T = any[]>(page: number, limit: number): Promise<T | null> {
+  async getPublicFeed<T = unknown[]>(page: number, limit: number): Promise<T | null> {
     const key = CacheKeys.publicFeed(page, limit)
-    return await cacheService.get<T>(key, true)
+    return await cacheService.get<T>(key)
   }
 
   /**
    * Cache creator-specific feed data
    */
-  async setCreatorFeed(creatorId: string, page: number, limit: number, feedData: any[], ttl = CacheTTL.MEDIUM): Promise<void> {
+  async setCreatorFeed(creatorId: string, page: number, limit: number, feedData: unknown[], ttl = CacheTTL.MEDIUM): Promise<void> {
     const key = CacheKeys.creatorFeed(creatorId, page, limit)
     await cacheService.set(key, feedData, ttl)
   }
@@ -68,9 +68,9 @@ export class FeedCacheService {
   /**
    * Get cached creator feed data
    */
-  async getCreatorFeed<T = any[]>(creatorId: string, page: number, limit: number): Promise<T | null> {
+  async getCreatorFeed<T = unknown[]>(creatorId: string, page: number, limit: number): Promise<T | null> {
     const key = CacheKeys.creatorFeed(creatorId, page, limit)
-    return await cacheService.get<T>(key, true)
+    return await cacheService.get<T>(key)
   }
 
   /**
@@ -98,7 +98,7 @@ export class ContentCacheService {
   /**
    * Cache story data
    */
-  async setStory(storyId: string, storyData: any, ttl = CacheTTL.LONG): Promise<void> {
+  async setStory(storyId: string, storyData: unknown, ttl = CacheTTL.LONG): Promise<void> {
     const key = CacheKeys.story(storyId)
     await cacheService.set(key, storyData, ttl)
   }
@@ -106,15 +106,15 @@ export class ContentCacheService {
   /**
    * Get cached story data
    */
-  async getStory<T = any>(storyId: string): Promise<T | null> {
+  async getStory<T = unknown>(storyId: string): Promise<T | null> {
     const key = CacheKeys.story(storyId)
-    return await cacheService.get<T>(key, true)
+    return await cacheService.get<T>(key)
   }
 
   /**
    * Cache story metadata (for feed display)
    */
-  async setStoryMetadata(storyId: string, metadata: any, ttl = CacheTTL.LONG): Promise<void> {
+  async setStoryMetadata(storyId: string, metadata: unknown, ttl = CacheTTL.LONG): Promise<void> {
     const key = CacheKeys.storyMetadata(storyId)
     await cacheService.set(key, metadata, ttl)
   }
@@ -122,9 +122,9 @@ export class ContentCacheService {
   /**
    * Get cached story metadata
    */
-  async getStoryMetadata<T = any>(storyId: string): Promise<T | null> {
+  async getStoryMetadata<T = unknown>(storyId: string): Promise<T | null> {
     const key = CacheKeys.storyMetadata(storyId)
-    return await cacheService.get<T>(key, true)
+    return await cacheService.get<T>(key)
   }
 
   /**
@@ -169,7 +169,7 @@ export class RateLimitService {
     windowSeconds: number
   ): Promise<{ allowed: boolean; remaining: number; resetTime: number }> {
     const key = CacheKeys.rateLimit(identifier, endpoint)
-    const current = await cacheService.get(key)
+    const current = await cacheService.get<string>(key)
     
     if (!current) {
       // First request in window
@@ -184,7 +184,7 @@ export class RateLimitService {
     const count = parseInt(current, 10)
     if (count >= maxRequests) {
       // Rate limit exceeded
-      const ttl = await cacheService.getClient().then(client => client.ttl(key))
+      const ttl = await cacheService.getClient().ttl(key)
       return {
         allowed: false,
         remaining: 0,
@@ -194,7 +194,7 @@ export class RateLimitService {
 
     // Increment counter
     const newCount = await cacheService.increment(key)
-    const ttl = await cacheService.getClient().then(client => client.ttl(key))
+    const ttl = await cacheService.getClient().ttl(key)
     
     return {
       allowed: true,
@@ -219,7 +219,7 @@ export class ModerationCacheService {
   /**
    * Cache moderation result
    */
-  async setModerationResult(contentId: string, result: any, ttl = CacheTTL.DAY): Promise<void> {
+  async setModerationResult(contentId: string, result: unknown, ttl = CacheTTL.DAY): Promise<void> {
     const key = CacheKeys.moderationResult(contentId)
     await cacheService.set(key, result, ttl)
   }
@@ -227,9 +227,9 @@ export class ModerationCacheService {
   /**
    * Get cached moderation result
    */
-  async getModerationResult<T = any>(contentId: string): Promise<T | null> {
+  async getModerationResult<T = unknown>(contentId: string): Promise<T | null> {
     const key = CacheKeys.moderationResult(contentId)
-    return await cacheService.get<T>(key, true)
+    return await cacheService.get<T>(key)
   }
 
   /**

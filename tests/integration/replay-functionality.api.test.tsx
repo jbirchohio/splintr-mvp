@@ -103,8 +103,8 @@ describe('Replay Functionality Integration', () => {
       moderationStatus: 'approved',
       streamingUrl: 'https://example.com/video-1.mp4',
       thumbnailUrl: 'https://example.com/video-1-thumb.jpg',
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     })
     
     // Mock playback analytics service

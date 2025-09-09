@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { refreshAccessToken } from '@/lib/jwt-utils'
+import { withValidation } from '@/lib/validation-middleware'
+import { withSecurity } from '@/lib/security-middleware'
+import { validationSchemas } from '@/lib/validation-schemas'
+import { RATE_LIMITS } from '@/lib/rate-limit'
 
-export async function POST(request: NextRequest) {
+export const POST = withSecurity(
+  withValidation({
+    bodySchema: validationSchemas.auth.refresh,
+    rateLimit: RATE_LIMITS.AUTH,
+    allowedContentTypes: ['application/json']
+  })(async (request, { body }) => {
   try {
-    const { refreshToken } = await request.json()
-    
-    if (!refreshToken) {
-      return NextResponse.json(
-        { error: 'Refresh token is required' },
-        { status: 400 }
-      )
-    }
+    const { refreshToken } = body
 
     const tokens = await refreshAccessToken(refreshToken)
     
@@ -32,4 +34,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+}))

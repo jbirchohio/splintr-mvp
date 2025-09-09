@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { FeedHeader } from './FeedHeader';
 import { FeedGrid } from './FeedGrid';
+import { FeaturedCreators } from './FeaturedCreators';
 import { useFeed } from '@/hooks/useFeed';
 import { FeedType } from '@/types/feed.types';
 
@@ -51,18 +52,24 @@ export function Feed({ initialType = 'chronological', className = '' }: FeedProp
       />
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {loading && items.length === 0 ? (
-          <FeedSkeleton />
-        ) : (
-          <FeedGrid
-            items={items}
-            loading={loading}
-            hasMore={hasMore}
-            onLoadMore={loadMore}
-            onItemView={handleItemView}
-            error={error}
-          />
-        )}
+        <div className="space-y-8">
+          {/* Featured Creators Section */}
+          <FeaturedCreators />
+          
+          {/* Main Feed */}
+          {loading && items.length === 0 ? (
+            <FeedSkeleton />
+          ) : (
+            <FeedGrid
+              items={items}
+              loading={loading}
+              hasMore={hasMore}
+              onLoadMore={loadMore}
+              onItemView={handleItemView}
+              error={error}
+            />
+          )}
+        </div>
       </main>
     </div>
   );
