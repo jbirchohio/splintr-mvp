@@ -2,43 +2,64 @@ import { cacheService, CacheKeys, CacheTTL } from '@/lib/redis'
 import { sessionCache, feedCache, contentCache, rateLimitService } from '@/services/cache.service'
 import { RedisHealthCheck } from '@/utils/redis-health'
 
-// Mock Redis for testing
+// Mock ioredis (the client used by src/lib/redis)
 const mockRedisStore = new Map<string, string>()
+let mockTtls = new Map<string, number>()
 
-jest.mock('redis', () => ({
-  createClient: jest.fn(() => ({
-    connect: jest.fn().mockResolvedValue(undefined),
-    disconnect: jest.fn().mockResolvedValue(undefined),
-    ping: jest.fn().mockResolvedValue('PONG'),
-    set: jest.fn().mockImplementation((key: string, value: string) => {
+jest.mock('ioredis', () => {
+  return class MockIORedis {
+    constructor() {}
+    on() {}
+    // Connection
+    connect = jest.fn(async () => {})
+    // Commands used in our code
+    ping = jest.fn(async () => 'PONG')
+    set = jest.fn(async (key: string, value: string, ...args: any[]) => {
+      // Support optional EX ttl NX style: set key value 'EX' ttl 'NX'
+      if (args.length >= 2 && args[0] === 'EX') {
+        const ttl = Number(args[1])
+        mockTtls.set(key, ttl)
+      }
       mockRedisStore.set(key, value)
-      return Promise.resolve('OK')
-    }),
-    setEx: jest.fn().mockImplementation((key: string, ttl: number, value: string) => {
+      return 'OK'
+    })
+    setex = jest.fn(async (key: string, ttl: number, value: string) => {
       mockRedisStore.set(key, value)
-      return Promise.resolve('OK')
-    }),
-    get: jest.fn().mockImplementation((key: string) => {
-      return Promise.resolve(mockRedisStore.get(key) || null)
-    }),
-    del: jest.fn().mockImplementation((key: string) => {
-      const existed = mockRedisStore.has(key)
-      mockRedisStore.delete(key)
-      return Promise.resolve(existed ? 1 : 0)
-    }),
-    exists: jest.fn().mockImplementation((key: string) => {
-      return Promise.resolve(mockRedisStore.has(key) ? 1 : 0)
-    }),
-    expire: jest.fn().mockResolvedValue(true),
-    incrBy: jest.fn().mockResolvedValue(1),
-    mGet: jest.fn().mockResolvedValue(['value1', 'value2']),
-    mSet: jest.fn().mockResolvedValue('OK'),
-    keys: jest.fn().mockResolvedValue(['key1', 'key2']),
-    ttl: jest.fn().mockResolvedValue(300),
-    info: jest.fn().mockResolvedValue('redis_version:6.2.0'),
-    on: jest.fn()
-  }))
-}))
+      mockTtls.set(key, ttl)
+      return 'OK'
+    })
+    get = jest.fn(async (key: string) => mockRedisStore.get(key) ?? null)
+    del = jest.fn(async (...keys: string[]) => {
+      let count = 0
+      keys.forEach(k => {
+        if (mockRedisStore.delete(k)) count++
+        mockTtls.delete(k)
+      })
+      return count
+    })
+    exists = jest.fn(async (key: string) => (mockRedisStore.has(key) ? 1 : 0))
+    expire = jest.fn(async (key: string, ttl: number) => {
+      // For testing, report success and set TTL regardless of prior existence
+      mockTtls.set(key, ttl)
+      return 1
+    })
+    incr = jest.fn(async (key: string) => {
+      const val = Number(mockRedisStore.get(key) ?? '0') + 1
+      mockRedisStore.set(key, String(val))
+      return val
+    })
+    zadd = jest.fn(async (_key: string, _score: number, _member: string) => 1)
+    zrevrange = jest.fn(async (_key: string, _start: number, _stop: number) => [])
+    keys = jest.fn(async (pattern: string) => {
+      const regex = new RegExp('^' + pattern.replace('*', '.*') + '$')
+      return Array.from(mockRedisStore.keys()).filter(k => regex.test(k))
+    })
+    ttl = jest.fn(async (key: string) => mockTtls.get(key) ?? -1)
+    info = jest.fn(async () => 'redis_version:6.2.0')
+    quit = jest.fn(async () => 'OK')
+    disconnect = jest.fn(async () => {})
+  }
+})
 
 describe('Redis Configuration', () => {
   beforeEach(() => {

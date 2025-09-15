@@ -106,6 +106,20 @@ export function sanitizeString(
     sanitized = DOMPurify.sanitize(sanitized, { ALLOWED_TAGS: [] })
   }
 
+  // Remove common path traversal sequences
+  sanitized = sanitized
+    .replace(/\.\.\//g, '')
+    .replace(/\.\.\\/g, '')
+    .replace(/%2e%2e%2f/gi, '')
+    .replace(/%2e%2e%5c/gi, '')
+    .replace(/\.\.%2f/gi, '')
+    .replace(/\.\.%5c/gi, '')
+
+  // Remove obvious SQL injection tokens/keywords
+  sanitized = sanitized
+    .replace(/(--|\/\*|\*\/|;|'|"|`)/g, '')
+    .replace(/\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT)\b/gi, '')
+
   // Truncate if max length specified
   if (maxLength && sanitized.length > maxLength) {
     sanitized = sanitized.substring(0, maxLength)
@@ -117,24 +131,33 @@ export function sanitizeString(
 /**
  * Sanitize object recursively
  */
-export function sanitizeObject(obj: any, options: SanitizationOptions = {}): any {
-  if (typeof obj === 'string') {
-    return sanitizeString(obj, options)
-  }
-  
-  if (Array.isArray(obj)) {
-    return obj.map(item => sanitizeObject(item, options))
-  }
-  
-  if (obj && typeof obj === 'object') {
-    const sanitized: any = {}
-    for (const [key, value] of Object.entries(obj)) {
-      sanitized[key] = sanitizeObject(value, options)
+export function sanitizeObject(
+  obj: any,
+  options: SanitizationOptions = {}
+): { sanitized: any; threats: string[] } {
+  const threats: string[] = []
+
+  const sanitizeValue = (value: any): any => {
+    if (typeof value === 'string') {
+      const before = value
+      const after = sanitizeString(value, options)
+      if (after !== before) threats.push('XSS')
+      return after
     }
-    return sanitized
+    if (Array.isArray(value)) {
+      return value.map(v => sanitizeValue(v))
+    }
+    if (value && typeof value === 'object') {
+      const result: any = {}
+      for (const [k, v] of Object.entries(value)) {
+        result[k] = sanitizeValue(v)
+      }
+      return result
+    }
+    return value
   }
-  
-  return obj
+
+  return { sanitized: sanitizeValue(obj), threats }
 }
 
 /**
@@ -148,7 +171,7 @@ export async function validateRequestBody<T>(
     const body = await request.json()
     
     // Sanitize the body first
-    const sanitizedBody = sanitizeObject(body)
+      const { sanitized: sanitizedBody } = sanitizeObject(body)
     
     // Validate against schema
     const result = schema.safeParse(sanitizedBody)
@@ -206,7 +229,7 @@ export function validateQueryParams<T>(
     }
     
     // Sanitize parameters
-    const sanitizedParams = sanitizeObject(params)
+      const { sanitized: sanitizedParams } = sanitizeObject(params)
     
     // Validate against schema
     const result = schema.safeParse(sanitizedParams)

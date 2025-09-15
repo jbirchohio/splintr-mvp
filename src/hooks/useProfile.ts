@@ -29,6 +29,8 @@ export function useProfile(): UseProfileReturn {
     queryKey: ['profile'],
     queryFn: () => userService.getProfile(),
     retry: 1,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 

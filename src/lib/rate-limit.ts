@@ -35,6 +35,17 @@ export async function rateLimit(
   maxRequests: number = 100,
   keyPrefix: string = 'rate_limit'
 ): Promise<RateLimitResult> {
+  // In test environments or when explicitly disabled, short-circuit rate limiting
+  if (process.env.NODE_ENV === 'test' || process.env.SKIP_RATE_LIMIT === 'true') {
+    const now = Date.now()
+    return {
+      success: true,
+      limit: maxRequests,
+      remaining: Math.max(0, maxRequests - 1),
+      reset: now + windowMs
+    }
+  }
+
   try {
     const clientId = getClientId(request)
     const key = `${keyPrefix}:${clientId}`

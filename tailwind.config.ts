@@ -11,18 +11,22 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        surface: "var(--surface)",
+        muted: "var(--muted)",
+        border: "var(--border)",
         primary: {
-          50: '#f0f9ff',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
+          50: 'var(--primary-50)',
+          500: 'var(--primary-500)',
+          600: 'var(--primary-600)',
+          700: 'var(--primary-700)',
         },
         secondary: {
           50: '#f8fafc',
           500: '#64748b',
           600: '#475569',
           700: '#334155',
-        }
+        },
+        accent: 'var(--accent)'
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

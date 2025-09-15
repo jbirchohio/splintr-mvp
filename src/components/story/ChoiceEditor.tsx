@@ -6,7 +6,7 @@ import { cn } from '@/utils/helpers'
 interface ChoiceEditorProps {
   choice: Choice
   index: number
-  availableNodes: StoryNode[]
+  availableNodes: { node: StoryNode; displayIndex: number }[]
   onUpdate: (updates: Partial<Choice>) => void
   onDelete: () => void
 }
@@ -18,7 +18,8 @@ export function ChoiceEditor({
   onUpdate,
   onDelete
 }: ChoiceEditorProps) {
-  const linkedNode = availableNodes.find(node => node.id === choice.nextNodeId)
+  const linkedNodeEntry = availableNodes.find(entry => entry.node.id === choice.nextNodeId)
+  const linkedNode = linkedNodeEntry?.node
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
@@ -40,10 +41,11 @@ export function ChoiceEditor({
 
       {/* Choice Text */}
       <div className="mb-4">
-        <label className="block text-xs font-medium text-gray-700 mb-2">
+        <label htmlFor={`choice-text-${index}`} className="block text-xs font-medium text-gray-700 mb-2">
           Choice Text
         </label>
         <input
+          id={`choice-text-${index}`}
           type="text"
           value={choice.text}
           onChange={(e) => onUpdate({ text: e.target.value })}
@@ -54,23 +56,21 @@ export function ChoiceEditor({
 
       {/* Next Node Selection */}
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-2">
+        <label htmlFor={`links-to-${index}`} className="block text-xs font-medium text-gray-700 mb-2">
           Links to Node
         </label>
         
         {availableNodes.length > 0 ? (
           <select
+            id={`links-to-${index}`}
             value={choice.nextNodeId || ''}
             onChange={(e) => onUpdate({ nextNodeId: e.target.value || null })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">Select a node...</option>
-            {availableNodes.map((node, nodeIndex) => (
-              <option key={node.id} value={node.id}>
-                Node {nodeIndex + 1}
-                {node.isStartNode && ' (Start)'}
-                {node.isEndNode && ' (End)'}
-                {node.videoId ? ' - Has Video' : ' - No Video'}
+            {availableNodes.map(({ node, displayIndex }) => (
+              <option key={node.id} value={node.id} label={`Node ${displayIndex}`}>
+                Node {displayIndex}
               </option>
             ))}
           </select>

@@ -9,8 +9,12 @@ const createJestConfig = nextJest({
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'jest-environment-jsdom',
-  testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/node_modules/'],
+  testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/node_modules/', '<rootDir>/tests/e2e/'],
   moduleNameMapper: {
+    // Test shims must come before the catch-all alias
+    '^@/pages/api/feed/index$': '<rootDir>/tests/shims/pages/api/feed/index.ts',
+    '^@/pages/api/feed/creator/\\[creatorId\\]$': '<rootDir>/tests/shims/pages/api/feed/creator/[creatorId].ts',
+    '^@/pages/api/stories/index$': '<rootDir>/tests/shims/pages/api/stories/index.ts',
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   collectCoverageFrom: [

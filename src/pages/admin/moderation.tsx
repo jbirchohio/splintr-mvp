@@ -68,17 +68,20 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       }
     }
 
-    // TODO: Check if user has admin role
-    // For now, we'll allow any authenticated user to access the moderation page
-    // In production, you should check user.app_metadata.role === 'admin'
+    // Require admin access by env allowlist
+    const admins = (process.env.RECS_ADMIN_USER_IDS || '').split(',').map(s => s.trim()).filter(Boolean)
+    if (!admins.includes(user.id)) {
+      return {
+        redirect: {
+          destination: '/auth/signin?redirect=/admin/moderation',
+          permanent: false,
+        },
+      }
+    }
 
     return {
       props: {
-        user: {
-          id: user.id,
-          email: user.email || '',
-          role: user.app_metadata?.role || 'user'
-        }
+        user: { id: user.id, email: user.email || '', role: user.app_metadata?.role || 'user' }
       }
     }
   } catch (error) {

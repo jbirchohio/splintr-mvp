@@ -18,17 +18,23 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   },
 })
 
-// Server-side client with service role key
-export const supabaseAdmin = createClient<Database>(
-  supabaseUrl,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
+// Server-side client with service role key (created lazily to avoid bundling secrets client-side)
+export function getSupabaseAdmin() {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceKey) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required on the server')
   }
-)
+  return createClient<Database>(
+    supabaseUrl,
+    serviceKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  )
+}
 
 // Type-safe client for server-side operations
 export function createServerClient() {
@@ -61,3 +67,6 @@ export const oauthProviders = {
     }
   }
 }
+
+// Re-export createClient for testability/mocking in integration tests
+export { createClient }

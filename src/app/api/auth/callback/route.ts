@@ -5,6 +5,7 @@ import { withValidation } from '@/lib/validation-middleware'
 import { withSecurity } from '@/lib/security-middleware'
 import { validationSchemas } from '@/lib/validation-schemas'
 import { RATE_LIMITS } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 export const GET = withSecurity(
   withValidation({
@@ -20,7 +21,7 @@ export const GET = withSecurity(
       const { data, error } = await supabase.auth.exchangeCodeForSession(code)
       
       if (error) {
-        console.error('Auth callback error:', error.message)
+        logger.error({ err: error }, 'Auth callback error')
         return NextResponse.redirect(`${origin}/auth/signin?error=callback_error`)
       }
 
@@ -45,14 +46,14 @@ export const GET = withSecurity(
           })
 
         if (profileError) {
-          console.error('Profile creation error:', profileError.message)
+          logger.error({ err: profileError }, 'Profile creation error')
           // Don't fail the auth flow, just log the error
         }
       }
 
       return NextResponse.redirect(`${origin}${next}`)
     } catch (error) {
-      console.error('Auth callback error:', error)
+      logger.error({ err: error }, 'Auth callback error')
       return NextResponse.redirect(`${origin}/auth/signin?error=callback_error`)
     }
   }

@@ -11,10 +11,8 @@ jest.mock('@/lib/supabase', () => ({
 }));
 
 const mockRedisCache = RedisCache as jest.Mocked<typeof RedisCache>;
-const mockSupabase = {
-  rpc: jest.fn(),
-  from: jest.fn()
-};
+// Use the actual mocked module export so behavior affects FeedService
+const { supabase: mockSupabase } = require('@/lib/supabase');
 
 describe('FeedService', () => {
   beforeEach(() => {

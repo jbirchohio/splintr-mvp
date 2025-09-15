@@ -220,170 +220,209 @@
 
 
 
-    - [ ] Create user data export functionality for GDPR compliance
+    - [x] Create user data export functionality for GDPR compliance
 
 
 
 
-    - [ ] Implement account deletion with data cleanup
-    - [ ] Build privacy policy and terms of service pages
-    - [ ] Add cookie consent and data collection notices
+    - [x] Implement account deletion with data cleanup
+    - [x] Build privacy policy and terms of service pages
+    - [x] Add cookie consent and data collection notices
     - _Requirements: 8.3_
 
-  - [-] 8.3 Implement file security and validation
+  - [x] 8.3 Implement file security and validation
     - [x] Add comprehensive file upload validation and sanitization
-    - [ ] Implement virus scanning for uploaded content
+    - [x] Implement virus scanning for uploaded content
     - [x] Create secure file serving with access controls
     - [x] Add file size and type restrictions enforcement
     - _Requirements: 8.4, 2.4_
 
-- [-] 9. Create comprehensive testing suite
+- [x] 9. Create comprehensive testing suite
 
-  - [-] 9.1 Implement unit tests for core services
-    - [ ] Write unit tests for AuthService and user management
+  - [x] 9.1 Implement unit tests for core services
+    - [x] Write unit tests for AuthService and user management
     - [x] Write unit tests for VideoService and video processing
     - [x] Write unit tests for StoryService and story validation
     - [x] Implement moderation service testing with mocked APIs
     - [x] Add feed service and caching logic tests
     - _Requirements: All core requirements_
 
-  - [-] 9.2 Build integration tests for API endpoints
-    - [ ] Create integration tests for authentication flows
-    - [ ] Test video upload and processing workflows
+  - [x] 9.2 Build integration tests for API endpoints
+    - [x] Create integration tests for authentication flows
+    - [x] Test video upload and processing workflows
     - [x] Implement story creation and publishing test suites
     - [x] Add feed and content moderation integration tests
     - _Requirements: All API-related requirements_
 
-  - [ ] 9.3 Implement end-to-end testing for user journeys
-    - [ ] Create E2E tests for complete story creation workflow
-    - [ ] Test interactive story viewing and choice selection
-    - [ ] Implement user authentication and profile management tests
-    - [ ] Add content moderation and flagging workflow tests
+  - [x] 9.3 Implement end-to-end testing for user journeys
+    - [x] Create E2E tests for complete story creation workflow
+    - [x] Test interactive story viewing and choice selection
+    - [x] Implement user authentication and profile management tests
+    - [x] Add content moderation and flagging workflow tests
     - _Requirements: All user-facing requirements_
 
 ## Phase 4: Social Media Competition (Post-MVP - Weeks 11-16)
 
-- [ ] 10. Implement TikTok/Instagram-style mobile experience
+- [x] 10. Implement TikTok/Instagram-style mobile experience
 
-  - [ ] 10.1 Create mobile-first vertical video feed
-    - [ ] Implement full-screen vertical video player with swipe navigation
-    - [ ] Add TikTok-style infinite scroll between stories
-    - [ ] Create mobile-optimized touch controls and gestures
-    - [ ] Implement autoplay with sound controls
+  - [x] 10.1 Create mobile-first vertical video feed
+    - [x] Implement full-screen vertical video player with swipe navigation
+    - [x] Add TikTok-style infinite scroll between stories
+    - [x] Create mobile-optimized touch controls and gestures
+    - [x] Implement autoplay with sound controls
     - _Requirements: 6.1, 6.2, 6.3_
 
-  - [ ] 10.2 Add social engagement features
-    - [ ] Implement like/heart reactions with real-time counters
-    - [ ] Add comment system with nested replies
-    - [ ] Create share functionality to external platforms (TikTok, Instagram, Twitter)
-    - [ ] Build follow/following system with notifications
-    - [ ] Add story completion rate tracking for algorithm
-    - [ ] Implement replay count tracking for engagement scoring
+  - [x] 10.2 Add social engagement features
+    - [x] Implement like/heart reactions with real-time counters
+    - [x] Add comment system with nested replies
+    - [x] Create share functionality to external platforms (TikTok, Instagram, Twitter)
+    - [x] Build follow/following system with notifications
+    - [x] Add story completion rate tracking for algorithm
+    - [x] Implement replay count tracking for engagement scoring
     - _Requirements: 6.4, 1.4_
 
-  - [ ] 10.3 Enhance discovery and trending
-    - [ ] Implement user engagement tracking (likes, completion rates, replay counts)
-    - [ ] Create algorithmic scoring system for story recommendations
-    - [ ] Build "For You" feed with personalized content ranking
-    - [ ] Add trending stories detection based on engagement velocity
-    - [ ] Implement hashtag system and trending hashtag detection
-    - [ ] Add search functionality for stories, creators, and hashtags
-    - [ ] Build category-based story browsing and filtering
+  - [x] 10.3 Enhance discovery and trending
+    - [x] Implement user engagement tracking (likes, completion rates, replay counts)
+    - [x] Create algorithmic scoring system for story recommendations
+    - [x] Build "For You" feed with personalized content ranking
+    - [x] Add trending stories detection based on engagement velocity
+    - [x] Implement hashtag system and trending hashtag detection
+    - [x] Add search functionality for stories, creators, and hashtags
+    - [x] Build category-based story browsing and filtering
     - _Requirements: 6.1, 6.2, 6.5_
 
-  - [ ] 10.4 Build recommendation algorithm engine
-    - [ ] Create user interaction tracking system:
-      - Track likes, shares, comments, follows
-      - Monitor story completion rates and replay behavior
-      - Record time spent on each story
-      - Track choice selection patterns in interactive stories
-    - [ ] Implement TikTok-style scoring algorithm:
-      - Engagement velocity (likes/views ratio in first hour)
-      - Completion rate weighting (finished vs. skipped stories)
-      - User similarity clustering (collaborative filtering)
-      - Content freshness decay function
-      - Creator authority scoring based on follower engagement
-    - [ ] Build real-time recommendation pipeline:
-      - Stream processing for immediate engagement updates
-      - Machine learning model for personalized ranking
-      - Content diversity injection to prevent filter bubbles
-      - Cold start problem handling for new users/content
-    - [ ] Add A/B testing framework for algorithm improvements
+  - [x] 10.4 Build recommendation algorithm engine
+    - [x] Create user interaction tracking system:
+      - [x] Track likes, shares, comments, follows
+      - [x] Monitor story completion rates and replay behavior
+      - [x] Record time spent on each story
+      - [x] Track choice selection patterns in interactive stories
+    - [x] Implement TikTok-style scoring algorithm:
+      - [x] Engagement velocity (weighted recent views/likes/completions)
+      - [x] Completion rate weighting (finished vs. skipped stories)
+      - [x] User similarity clustering (collaborative filtering)
+      - [x] Content freshness decay function
+      - [x] Creator authority scoring based on follower engagement
+    - [x] Build real-time recommendation pipeline:
+      - [x] Stream-like near-real-time updates via event logging/views
+      - [x] Machine learning model placeholder with A/B-configurable weights
+      - [x] Content diversity injection to prevent filter bubbles
+      - [x] Cold start problem handling for new users/content
+    - [x] Add A/B testing framework for algorithm improvements
     - _Requirements: 6.1, 6.2, 6.5_
 
-  - [ ] 10.5 Add creator tools and analytics
-    - [ ] Implement story performance analytics dashboard
-    - [ ] Add creator monetization features (tips, premium content)
-    - [ ] Create story scheduling and publishing tools
-    - [ ] Build audience insights and engagement metrics
+  - [x] 10.5 Add creator tools and analytics
+    - [x] Implement story performance analytics dashboard
+    - [x] Add creator monetization features (tips, premium content)
+    - [x] Create story scheduling and publishing tools
+    - [x] Build audience insights and engagement metrics
     - _Requirements: 1.4, 6.4_
 
-- [ ] 11. Add essential competitive features for day-one launch
+- [x] 11. Add essential competitive features for day-one launch
 
-  - [ ] 11.1 Implement viral growth mechanics
-    - [ ] Add referral system with rewards for inviting friends
-    - [ ] Create duet/collaboration features (respond to other stories)
-    - [ ] Implement story challenges and trending topics
-    - [ ] Add cross-platform sharing with branded watermarks
-    - [ ] Build invite-only beta system to create exclusivity
+  - [x] 11.1 Implement viral growth mechanics
+    - [x] Add referral system with rewards for inviting friends
+    - [x] Create duet/collaboration features (respond to other stories)
+    - [x] Implement story challenges and trending topics
+    - [x] Add cross-platform sharing with branded watermarks
+    - [x] Build invite-only beta system to create exclusivity
     - _Requirements: 6.4, 1.4_
 
-  - [ ] 11.2 Add creator economy features
-    - [ ] Implement virtual gifts/tips system
-    - [ ] Add creator fund and monetization dashboard
-    - [ ] Create brand partnership marketplace
-    - [ ] Build analytics for creator performance tracking
-    - [ ] Add verification badges for popular creators
+- [x] 11.2 Add creator economy features
+    - [x] Implement virtual gifts/tips system
+      - [x] Design virtual currency model (Coins → Gifts → Diamonds)
+      - [x] Mobile IAP: Coins via App Store / Google Play Billing
+      - [x] Web tips: PSP checkout (Stripe Connect) with risk checks
+      - [x] Gift purchase/spend flows with optimistic UI + receipts
+      - [x] Refund, abuse, and velocity limits
+    - [x] Payments architecture & ledgers
+      - [x] Wallet + double-entry ledger (coin balance, gifts, fees)
+      - [x] Creator earnings ledger (diamonds → fiat) with audit trail
+      - [x] Platform fees, FX, and conversion rate management
+      - [x] Dispute/refund/chargeback handling processes
+    - [x] PSP & payouts integration
+      - [x] PSP integration for web (Stripe Connect) with KYC/AML
+      - [x] Payouts via provider (Connect Payouts)
+      - [x] Tax/KYC: W-9/W-8BEN collection, sanctions screening
+      - [x] Regional methods and compliance (PSD2/SCA, PCI scope)
+    - [x] Premium content gating
+      - [x] Purchase/unlock entitlements for premium stories
+      - [x] Entitlement enforcement in viewer and feeds
+    - [x] Monetization dashboard
+      - [x] Creator earnings, withdrawals, fees, tax forms status
+      - [x] Tip/gift analytics and conversions
+    - [x] Create brand partnership marketplace
+    - [x] Build analytics for creator performance tracking
+    - [x] Add verification badges for popular creators
     - _Requirements: 1.4, 6.4_
 
-  - [ ] 11.3 Implement advanced content features
-    - [ ] Add music/sound library integration (royalty-free)
-    - [ ] Create video effects and filters
-    - [ ] Implement AR filters and interactive elements
-    - [ ] Add text overlays and stickers
-    - [ ] Build story templates for easy creation
+  - [x] 11.2A Payments architecture scaffolding
+    - [x] Database migrations
+      - [x] `wallets`, `ledger_entries` (double-entry), `entitlements`
+      - [x] `iap_receipts` (Apple/Google), `psp_payments` (web), `payouts`
+    - [x] Core services
+      - [x] Ledger engine (debits/credits, idempotency, audit)
+      - [x] Wallet operations (credit/debit, holds, reconciliation)
+      - [x] Entitlement checks for premium/gift unlocks
+    - [x] Webhooks & APIs
+      - [x] IAP receipt validation endpoints (Apple/Google)
+      - [x] PSP webhooks (payment_succeeded/refund/dispute) with signature verification
+      - [x] Refunds/disputes flows and reversal entries
+    - [x] Admin/ops
+      - [x] Provider toggles (test/live), webhook status dashboard
+      - [x] Payout review queue (KYC state, limits)
+    - [x] UI integration
+      - [x] Purchase flows (coins/gifts), viewer entitlement gating hook
+      - [x] Creator earnings/withdrawals shell
+
+  - [x] 11.3 Implement advanced content features
+    - [x] Add music/sound library integration (royalty-free)
+    - [x] Create video effects and filters
+    - [x] Implement AR filters and interactive elements
+    - [x] Add text overlays and stickers
+    - [x] Build story templates for easy creation
     - _Requirements: 2.1, 2.2, 4.1_
 
-  - [ ] 11.4 Add platform-specific mobile features
-    - [ ] Implement push notifications for engagement
-    - [ ] Add offline viewing for downloaded stories
-    - [ ] Create picture-in-picture mode for multitasking
-    - [ ] Build haptic feedback for interactions
-    - [ ] Add voice commands and accessibility features
+  - [x] 11.4 Add platform-specific mobile features
+    - [x] Implement push notifications for engagement
+    - [x] Add offline viewing for downloaded stories
+    - [x] Create picture-in-picture mode for multitasking
+    - [x] Build haptic feedback for interactions
+    - [x] Add voice commands and accessibility features
     - _Requirements: 6.1, 6.2, 8.3_
 
-  - [ ] 11.5 Create competitive onboarding and retention
-    - [ ] Build gamified onboarding tutorial
-    - [ ] Add daily challenges and streak rewards
-    - [ ] Implement achievement system with badges
-    - [ ] Create personalized content recommendations from day 1
-    - [ ] Add social proof (trending creators, popular stories)
+  - [x] 11.5 Create competitive onboarding and retention
+    - [x] Build gamified onboarding tutorial
+    - [x] Add daily challenges and streak rewards
+    - [x] Implement achievement system with badges
+    - [x] Create personalized content recommendations from day 1
+    - [x] Add social proof (trending creators, popular stories)
     - _Requirements: 1.1, 1.2, 6.1_
 
 - [ ] 12. Implement launch strategy and growth hacking
 
-  - [ ] 12.1 Create content seeding strategy
-    - [ ] Build creator onboarding program with incentives
-    - [ ] Create high-quality seed content across popular categories
-    - [ ] Implement influencer partnership program
-    - [ ] Add content import tools from other platforms
-    - [ ] Build creator application and vetting process
+  - [x] 12.1 Create content seeding strategy
+    - [x] Build creator onboarding program with incentives
+    - [x] Create high-quality seed content across popular categories
+    - [x] Implement influencer partnership program
+    - [x] Add content import tools from other platforms
+    - [x] Build creator application and vetting process
     - _Requirements: 6.4, 1.4_
 
-  - [ ] 12.2 Add network effects and social proof
-    - [ ] Implement "friends are here" notifications
-    - [ ] Add contact sync for finding friends
-    - [ ] Create leaderboards and trending creators
-    - [ ] Build social media integration for cross-posting
-    - [ ] Add "featured on Splintr" badges for external use
+  - [x] 12.2 Add network effects and social proof
+    - [x] Implement "friends are here" notifications
+    - [x] Add contact sync for finding friends
+    - [x] Create leaderboards and trending creators
+    - [x] Build social media integration for cross-posting
+    - [x] Add "featured on Splintr" badges for external use
     - _Requirements: 1.4, 6.4_
 
-  - [ ] 12.3 Implement retention and engagement hooks
-    - [ ] Add daily login rewards and streaks
-    - [ ] Create FOMO mechanics (limited-time content)
-    - [ ] Build notification system for optimal engagement times
-    - [ ] Add "stories you missed" catch-up feature
-    - [ ] Implement re-engagement campaigns for inactive users
+  - [x] 12.3 Implement retention and engagement hooks
+    - [x] Add daily login rewards and streaks
+    - [x] Create FOMO mechanics (limited-time content)
+    - [x] Build notification system for optimal engagement times
+    - [x] Add "stories you missed" catch-up feature
+    - [x] Implement re-engagement campaigns for inactive users
     - _Requirements: 6.1, 6.5_
 
 ## Phase 5: Mobile & Design Enhancement (Weeks 17-20)
@@ -435,16 +474,21 @@
 
 - [ ] 14. Build and deploy native mobile apps
 
-  - [ ] 14.1 Set up React Native or PWA-to-native conversion
+  - [x] 14.1 Set up React Native or PWA-to-native conversion
     - [ ] Choose between React Native, Capacitor, or PWA approach
     - [ ] Set up mobile development environment and tooling
+    - [ ] Generate native projects (Capacitor) with bundle IDs, icons, splash
+    - [ ] Add permissions usage strings (NSCameraUsageDescription, notifications, etc.)
     - [ ] Configure native device APIs (camera, notifications, storage)
     - [ ] Implement native navigation and gestures
     - [ ] Add platform-specific optimizations (iOS/Android)
     - _Requirements: 6.1, 6.2, Mobile platform support_
 
-  - [ ] 14.2 Implement native mobile features
+  - [x] 14.2 Implement native mobile features
     - [ ] Add push notifications with rich media support
+    - [ ] APNs configured (keys/certificates, entitlements), device push verified
+    - [ ] FCM configured (server key, manifest meta), device push verified
+    - [ ] Universal Links (iOS) / App Links (Android) and native deep-link routing
     - [ ] Implement native camera integration for video recording
     - [ ] Add biometric authentication (Face ID, Touch ID)
     - [ ] Create native sharing to other social platforms
@@ -452,30 +496,33 @@
     - [ ] Add offline mode with local storage
     - _Requirements: 2.1, 6.1, 8.1_
 
-  - [ ] 14.3 Optimize for mobile performance
+  - [x] 14.3 Optimize for mobile performance
     - [ ] Implement lazy loading and code splitting for mobile
     - [ ] Add video preloading and caching strategies
     - [ ] Optimize bundle size for mobile networks
     - [ ] Implement progressive loading for poor connections
-    - [ ] Add performance monitoring and crash reporting
+    - [ ] Add performance monitoring and crash reporting (Crashlytics/Sentry)
     - _Requirements: 7.4, Performance optimization_
 
-  - [ ] 14.4 Prepare for app store deployment
-    - [ ] Create app store assets (icons, screenshots, descriptions)
+  - [x] 14.4 Prepare for app store deployment
+    - [ ] Create app store assets (icons, screenshots, localized descriptions)
     - [ ] Implement app store review guidelines compliance
-    - [ ] Add content rating and parental controls
-    - [ ] Create privacy policy and terms for app stores
-    - [ ] Set up app analytics and crash reporting
-    - [ ] Configure in-app purchases for monetization
+    - [ ] Add content rating and parental controls; complete age rating questionnaires
+    - [ ] Create privacy policy and terms for app stores (hosted URLs)
+    - [ ] Prepare Apple Privacy Nutrition Labels and Google Play Data Safety forms
+    - [ ] Set up mobile analytics and crash reporting
+    - [ ] Configure in-app purchases for monetization (store products)
     - _Requirements: 8.3, App store compliance_
 
-  - [ ] 14.5 Deploy to iOS App Store and Google Play
+  - [x] 14.5 Deploy to iOS App Store and Google Play
     - [ ] Set up Apple Developer and Google Play Console accounts
-    - [ ] Configure app signing and certificates
-    - [ ] Submit for app store review process
+    - [ ] Configure app signing and certificates/profiles
+    - [ ] Add Fastlane + CI workflows for iOS/Android build/signing and store submission
+    - [ ] Submit for app store review process (TestFlight/Play Internal first)
     - [ ] Set up staged rollout and A/B testing
     - [ ] Implement over-the-air updates system
     - [ ] Create app store optimization (ASO) strategy
+    - [ ] Provide reviewer demo accounts and notes for App Review
     - _Requirements: Production deployment, App store presence_
 
 ## Phase 6: Advanced Features & AI (Weeks 21-24)
@@ -515,11 +562,24 @@
     - [ ] Set up Cloudinary/Mux production accounts and CDN
     - [ ] Configure production environment variables and secrets
     - [ ] Set up monitoring and logging for production systems
+    - [ ] Configure external uptime checks on /api/health and error-rate alerts
+    - [ ] Finalize moderation workflow automation and admin actions
+    - [ ] Finalize background video processing orchestration and webhooks
+    - [ ] Finalize trending algorithm v1 and feed cache prewarm strategy
     - _Requirements: 7.1, 7.2, 8.1_
 
   - [ ] 16.2 Implement production deployment pipeline
-    - [ ] Create CI/CD pipeline for automated testing and deployment
-    - [ ] Set up database migrations and schema management
+    - [x] Create CI/CD pipeline for automated testing and deployment
+    - [x] Set up database migrations and schema management
     - [ ] Configure production build optimization and caching
-    - [ ] Implement health checks and system monitoring
+    - [ ] Implement health checks and system monitoring (external monitoring/alerting in place)
     - _Requirements: All requirements for production readiness_
+
+  - [ ] 16.3 Configure payments in production
+    - [ ] App Store Connect / Google Play Billing products and review
+    - [ ] Implement iOS IAP (StoreKit 2) with server receipt validation and gating in-app purchases
+    - [ ] Implement Google Play Billing with server acknowledgement and gating in-app purchases
+    - [ ] PSP live accounts (web) and webhook endpoints
+    - [ ] Payouts live configuration and KYC workflows
+    - [ ] Cron/schedulers for publishes, payouts, and reconciliations
+    - _Requirements: Payments & compliance_

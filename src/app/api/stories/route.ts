@@ -5,6 +5,8 @@ import { withSecurity } from '@/lib/security-middleware'
 import { validationSchemas } from '@/lib/validation-schemas'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { Database } from '@/types/database.types'
+import { logger } from '@/lib/logger'
+import { createServerClient as createSb } from '@/lib/supabase'
 
 type StoryRow = Database['public']['Tables']['stories']['Row']
 
@@ -52,11 +54,27 @@ export const GET = withSecurity(
       const { data: stories, error, count } = await queryBuilder
 
       if (error) {
-        console.error('Stories fetch error:', error.message)
+        logger.error({ err: error }, 'Stories fetch error')
         return NextResponse.json(
           { error: 'Failed to fetch stories' },
           { status: 500 }
         )
+      }
+
+      // Entitlement gating: mark locked if premium and user lacks entitlement
+      const userId = (typeof (request as any).headers?.get === 'function') ? (request as any).headers.get('x-user-id') : null
+      let entitledMap: Record<string, boolean> = {}
+      if (userId) {
+        const premiumIds = (stories || []).filter((s: any) => s.is_published && s.is_premium).map((s: any) => s.id)
+        if (premiumIds.length) {
+          const supabase = createSb()
+          const { data: ents } = await supabase
+            .from('entitlements')
+            .select('story_id')
+            .eq('user_id', userId)
+            .in('story_id', premiumIds)
+          (ents || []).forEach((e: any) => { entitledMap[e.story_id] = true })
+        }
       }
 
       return NextResponse.json({
@@ -65,6 +83,8 @@ export const GET = withSecurity(
           title: story.title,
           description: story.description,
           isPublished: story.is_published,
+          isPremium: (story as any).is_premium === true,
+          isLocked: (story as any).is_premium === true && !entitledMap[story.id],
           thumbnailUrl: story.thumbnail_url,
           viewCount: story.view_count,
           createdAt: story.created_at,
@@ -84,7 +104,7 @@ export const GET = withSecurity(
         }
       })
     } catch (error) {
-      console.error('Stories fetch error:', error)
+      logger.error({ err: error }, 'Stories fetch error')
       return NextResponse.json(
         { error: 'Internal server error' },
         { status: 500 }
@@ -98,8 +118,7 @@ export const POST = withSecurity(
   withValidation({
     bodySchema: validationSchemas.story.create,
     requireAuth: true,
-    rateLimit: RATE_LIMITS.STORY_WRITE,
-    allowedContentTypes: ['application/json']
+    rateLimit: RATE_LIMITS.STORY_WRITE
   })(async (request, { body, user }) => {
     try {
       const { title, description, nodes } = body
@@ -114,7 +133,7 @@ export const POST = withSecurity(
         .in('id', videoIds)
 
       if (videoError) {
-        console.error('Video validation error:', videoError.message)
+        logger.error({ err: videoError }, 'Video validation error')
         return NextResponse.json(
           { error: 'Failed to validate videos' },
           { status: 500 }
@@ -179,7 +198,7 @@ export const POST = withSecurity(
         .single()
 
       if (error) {
-        console.error('Story creation error:', error.message)
+        logger.error({ err: error }, 'Story creation error')
         return NextResponse.json(
           { error: 'Failed to create story' },
           { status: 500 }
@@ -200,7 +219,7 @@ export const POST = withSecurity(
         }
       }, { status: 201 })
     } catch (error) {
-      console.error('Story creation error:', error)
+      logger.error({ err: error }, 'Story creation error')
       return NextResponse.json(
         { error: 'Internal server error' },
         { status: 500 }

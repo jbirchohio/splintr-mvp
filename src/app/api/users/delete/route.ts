@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase'
 import { cookies } from 'next/headers'
 import { v2 as cloudinary } from 'cloudinary'
+import { logger } from '@/lib/logger'
 
 // Configure Cloudinary
 cloudinary.config({
@@ -28,7 +29,7 @@ export async function DELETE(request: NextRequest) {
     const userId = user.id
 
     // Start transaction-like cleanup process
-    console.log(`Starting account deletion for user: ${userId}`)
+    logger.info({ userId }, 'Starting account deletion')
 
     // 1. Get all videos to delete from Cloudinary
     const { data: videos } = await supabase
@@ -44,9 +45,9 @@ export async function DELETE(request: NextRequest) {
             await cloudinary.uploader.destroy(video.cloudinary_public_id, {
               resource_type: 'video'
             })
-            console.log(`Deleted video from Cloudinary: ${video.cloudinary_public_id}`)
+            logger.info({ publicId: video.cloudinary_public_id }, 'Deleted video from Cloudinary')
           } catch (cloudinaryError) {
-            console.error(`Failed to delete video from Cloudinary: ${video.cloudinary_public_id}`, cloudinaryError)
+            logger.error({ publicId: video.cloudinary_public_id, err: cloudinaryError }, 'Failed to delete video from Cloudinary')
             // Continue with deletion even if Cloudinary fails
           }
         }
@@ -60,7 +61,7 @@ export async function DELETE(request: NextRequest) {
       .eq('viewer_id', userId)
 
     if (playthroughsError) {
-      console.error('Error deleting playthroughs:', playthroughsError)
+      logger.error({ err: playthroughsError }, 'Error deleting playthroughs')
     }
 
     // 3. Delete content flags reported by user
@@ -70,7 +71,7 @@ export async function DELETE(request: NextRequest) {
       .eq('reporter_id', userId)
 
     if (flagsError) {
-      console.error('Error deleting content flags:', flagsError)
+      logger.error({ err: flagsError }, 'Error deleting content flags')
     }
 
     // 4. Delete videos (this will cascade to related data)
@@ -80,7 +81,7 @@ export async function DELETE(request: NextRequest) {
       .eq('creator_id', userId)
 
     if (videosError) {
-      console.error('Error deleting videos:', videosError)
+      logger.error({ err: videosError }, 'Error deleting videos')
       return NextResponse.json(
         { error: 'Failed to delete user videos' },
         { status: 500 }
@@ -94,7 +95,7 @@ export async function DELETE(request: NextRequest) {
       .eq('creator_id', userId)
 
     if (storiesError) {
-      console.error('Error deleting stories:', storiesError)
+      logger.error({ err: storiesError }, 'Error deleting stories')
       return NextResponse.json(
         { error: 'Failed to delete user stories' },
         { status: 500 }
@@ -108,7 +109,7 @@ export async function DELETE(request: NextRequest) {
       .eq('id', userId)
 
     if (profileError) {
-      console.error('Error deleting user profile:', profileError)
+      logger.error({ err: profileError }, 'Error deleting user profile')
       return NextResponse.json(
         { error: 'Failed to delete user profile' },
         { status: 500 }
@@ -119,14 +120,14 @@ export async function DELETE(request: NextRequest) {
     const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId)
 
     if (authDeleteError) {
-      console.error('Error deleting user from auth:', authDeleteError)
+      logger.error({ err: authDeleteError }, 'Error deleting user from auth')
       return NextResponse.json(
         { error: 'Failed to delete user account' },
         { status: 500 }
       )
     }
 
-    console.log(`Successfully deleted account for user: ${userId}`)
+    logger.info({ userId }, 'Successfully deleted account')
 
     return NextResponse.json({
       message: 'Account successfully deleted',
@@ -134,7 +135,7 @@ export async function DELETE(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Account deletion error:', error)
+    logger.error({ err: error }, 'Account deletion error')
     return NextResponse.json(
       { error: 'Failed to delete account' },
       { status: 500 }

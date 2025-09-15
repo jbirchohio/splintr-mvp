@@ -34,6 +34,11 @@ export class PlaybackAnalyticsService {
       // Update story view count if completed
       if (analytics.isCompleted) {
         await this.incrementStoryViewCount(analytics.storyId)
+        try {
+          // Bump challenges + streak and sync achievements server-side
+          await fetch('/api/challenges/progress', { method: 'POST' })
+          await fetch('/api/achievements/sync', { method: 'POST' })
+        } catch {}
       }
     } catch (error) {
       console.error('Error tracking playthrough:', error)
@@ -47,7 +52,7 @@ export class PlaybackAnalyticsService {
   private async incrementStoryViewCount(storyId: string): Promise<void> {
     try {
       const { error } = await supabase.rpc('increment_story_views', {
-        story_uuid: storyId
+        story_id: storyId
       })
 
       if (error) {

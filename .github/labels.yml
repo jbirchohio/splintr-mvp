@@ -1,0 +1,33 @@
+- name: autorelease: pending
+  color: '0366d6'
+  description: Release Please PR open
+- name: autorelease: tagged
+  color: '0e8a16'
+  description: Release tagged and published
+- name: feat
+  color: '1f883d'
+  description: Feature work
+- name: fix
+  color: 'd73a4a'
+  description: Bug fix
+- name: perf
+  color: 'ff7f50'
+  description: Performance improvements
+- name: refactor
+  color: 'fbca04'
+  description: Refactoring
+- name: docs
+  color: '0e8a16'
+  description: Documentation
+- name: ci
+  color: '5319e7'
+  description: Continuous Integration
+- name: build
+  color: 'c5def5'
+  description: Build system
+- name: chore
+  color: 'ededed'
+  description: Chore
+- name: test
+  color: '5319e7'
+  description: Tests

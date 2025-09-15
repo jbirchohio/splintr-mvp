@@ -1,9 +1,9 @@
 import { createMocks } from 'node-mocks-http';
-import feedHandler from '@/pages/api/feed/index';
-import creatorFeedHandler from '@/pages/api/feed/creator/[creatorId]';
+import feedHandler from '../shims/pages/api/feed/index';
+import creatorFeedHandler from '../shims/pages/api/feed/creator/[creatorId]';
 import refreshHandler from '@/pages/api/feed/refresh';
 import statsHandler from '@/pages/api/feed/stats';
-import viewHandler from '@/pages/api/stories/[storyId]/view';
+import viewHandler from '../shims/pages/api/stories/[storyId]/view';
 import { FeedService } from '@/services/feed.service';
 
 // Mock the services

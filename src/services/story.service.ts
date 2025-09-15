@@ -12,11 +12,35 @@ import { ModerationResult } from '@/types/moderation.types'
 import { randomUUID } from 'crypto'
 
 export class StoryService {
+  // In-memory store for E2E to simulate persistence
+  private e2eStories: Record<string, Story> = {}
   /**
    * Create a new story
    */
   async createStory(request: CreateStoryRequest): Promise<Story> {
     try {
+      if (process.env.NEXT_PUBLIC_E2E === 'true') {
+        const id = randomUUID()
+        const now = new Date()
+        const nodesWithIds = request.nodes.map(node => ({
+          ...node,
+          id: randomUUID(),
+          choices: node.choices.map(choice => ({ ...choice, id: randomUUID() }))
+        }))
+        const story: Story = {
+          id,
+          creatorId: 'e2e-user',
+          title: request.title,
+          description: request.description,
+          nodes: nodesWithIds,
+          isPublished: false,
+          viewCount: 0,
+          createdAt: now,
+          updatedAt: now,
+        }
+        this.e2eStories[id] = story
+        return story
+      }
       // Get current user
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) {
@@ -135,6 +159,21 @@ export class StoryService {
    */
   async updateStory(storyId: string, updates: UpdateStoryRequest): Promise<Story> {
     try {
+      if (process.env.NEXT_PUBLIC_E2E === 'true') {
+        const existing = this.e2eStories[storyId]
+        if (!existing) throw new Error('Story not found')
+        const updated: Story = {
+          ...existing,
+          title: updates.title ?? existing.title,
+          description: updates.description ?? existing.description,
+          nodes: updates.nodes ?? existing.nodes,
+          isPublished: updates.isPublished ?? existing.isPublished,
+          updatedAt: new Date(),
+          publishedAt: updates.isPublished ? new Date() : existing.publishedAt,
+        }
+        this.e2eStories[storyId] = updated
+        return updated
+      }
       // Get current user
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) {
@@ -193,6 +232,14 @@ export class StoryService {
    */
   async publishStory(storyId: string): Promise<void> {
     try {
+      if (process.env.NEXT_PUBLIC_E2E === 'true') {
+        // Minimal validation: must have at least one node and one end node
+        const story = await this.getStory(storyId)
+        const hasEnd = story.nodes.some(n => n.isEndNode)
+        if (!story.nodes.length || !hasEnd) throw new Error('Invalid story for publish')
+        await this.updateStory(storyId, { isPublished: true })
+        return
+      }
       // Get the story first
       const story = await this.getStory(storyId)
       
@@ -227,6 +274,11 @@ export class StoryService {
    */
   async getStory(storyId: string): Promise<Story> {
     try {
+      if (process.env.NEXT_PUBLIC_E2E === 'true') {
+        const s = this.e2eStories[storyId]
+        if (!s) throw new Error('Story not found')
+        return s
+      }
       const { data, error } = await supabase
         .from('stories')
         .select('*')

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { StoryEditor } from '@/components/story'
 import { Story } from '@/types/story.types'
 import { storyService } from '@/services/story.service'
@@ -6,6 +6,12 @@ import { storyService } from '@/services/story.service'
 export default function StoryEditorDemo() {
   const [story, setStory] = useState<Story | undefined>(undefined)
   const [message, setMessage] = useState<string>('')
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 50)
+    return () => clearTimeout(t)
+  }, [])
 
   const handleSave = async (updatedStory: Story) => {
     try {
@@ -95,11 +101,13 @@ export default function StoryEditorDemo() {
 
       {/* Story Editor */}
       <div className="h-[calc(100vh-4rem)]">
-        <StoryEditor
-          story={story}
-          onSave={handleSave}
-          onPublish={handlePublish}
-        />
+        {ready && (
+          <StoryEditor
+            story={story}
+            onSave={handleSave}
+            onPublish={handlePublish}
+          />
+        )}
       </div>
     </div>
   )

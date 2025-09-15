@@ -18,10 +18,10 @@ export function Button({
   const baseClasses = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
   
   const variantClasses = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500',
-    secondary: 'bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500',
-    outline: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-blue-500',
-    ghost: 'text-gray-700 hover:bg-gray-100 focus:ring-gray-500',
+    primary: 'bg-[color:var(--primary-600)] text-white hover:bg-[color:var(--primary-700)] focus:ring-[color:var(--primary-600)]',
+    secondary: 'bg-[color:var(--surface)] text-[color:var(--foreground)] border border-[color:var(--border)] hover:bg-[color:var(--primary-50)] focus:ring-[color:var(--primary-600)]',
+    outline: 'border border-[color:var(--border)] bg-transparent text-[color:var(--foreground)] hover:bg-[color:var(--primary-50)] focus:ring-[color:var(--primary-600)]',
+    ghost: 'text-[color:var(--foreground)] hover:bg-[color:var(--primary-50)] focus:ring-[color:var(--primary-600)]',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500'
   };
   

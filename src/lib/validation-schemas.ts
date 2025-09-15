@@ -241,7 +241,7 @@ export const analyticsSchemas = {
   engagement: z.object({
     contentType: z.enum(['story', 'video']),
     contentId: commonSchemas.uuid,
-    action: z.enum(['view', 'like', 'share', 'comment', 'complete']),
+    action: z.enum(['view', 'like', 'share', 'comment', 'complete', 'dwell', 'skip']),
     metadata: z.record(z.any()).optional()
   })
 }

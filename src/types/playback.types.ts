@@ -65,6 +65,10 @@ export interface StoryPlayerProps {
   onComplete?: (analytics: PlaybackAnalytics) => void
   onError?: (error: Error) => void
   autoStart?: boolean
+  muted?: boolean
+  paused?: boolean
+  onVideoLoaded?: (info: { streamingUrl: string }) => void
+  watermark?: boolean
 }
 
 export interface PlaybackControls {

@@ -8,11 +8,15 @@ interface VideoPlayerProps {
   onVideoEnd: () => void
   onChoiceSelect: (choice: Choice) => void
   autoPlay?: boolean
+  muted?: boolean
   showChoices?: boolean
   transitionEffect?: TransitionEffect
   className?: string
   showProgressBar?: boolean
   immersiveMode?: boolean
+  externalPaused?: boolean
+  watermark?: boolean
+  enableAR?: boolean
 }
 
 export function VideoPlayer({
@@ -21,13 +25,18 @@ export function VideoPlayer({
   onVideoEnd,
   onChoiceSelect,
   autoPlay = true,
+  muted,
   showChoices = true,
   transitionEffect = { type: 'fade', duration: 300 },
   className = '',
   showProgressBar = true,
-  immersiveMode = true
+  immersiveMode = true,
+  externalPaused,
+  watermark,
+  enableAR
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const [saveData, setSaveData] = useState<boolean>(false)
   const [playerState, setPlayerState] = useState<VideoPlayerState>({
     isPlaying: false,
     currentTime: 0,
@@ -37,6 +46,13 @@ export function VideoPlayer({
   })
   const [showChoiceOverlay, setShowChoiceOverlay] = useState(false)
   const [timeRemaining, setTimeRemaining] = useState<number>(0)
+  const [isPiP, setIsPiP] = useState<boolean>(false)
+  const cacheOffline = useCallback(async () => {
+    try {
+      const reg = await navigator.serviceWorker.ready
+      reg.active?.postMessage({ type: 'cache-url', url: videoUrl })
+    } catch {}
+  }, [videoUrl])
 
   // Video event handlers
   const handleLoadedMetadata = useCallback(() => {
@@ -89,6 +105,45 @@ export function VideoPlayer({
     }
   }, [choices.length, onVideoEnd])
 
+  // Picture-in-Picture support
+  const enterPiP = useCallback(async () => {
+    try {
+      const el = videoRef.current as any
+      if (!el) return
+      if (document.pictureInPictureElement) {
+        await (document as any).exitPictureInPicture()
+        setIsPiP(false)
+      } else if (el.requestPictureInPicture) {
+        await el.requestPictureInPicture()
+        setIsPiP(true)
+      }
+    } catch {}
+  }, [])
+
+  // Respect Save-Data / low bandwidth
+  useEffect(() => {
+    try {
+      const anyNav: any = navigator as any
+      const conn = anyNav?.connection || anyNav?.mozConnection || anyNav?.webkitConnection
+      const sd = !!conn?.saveData
+      setSaveData(sd)
+      const onChange = () => setSaveData(!!(anyNav?.connection?.saveData))
+      conn?.addEventListener?.('change', onChange)
+      return () => conn?.removeEventListener?.('change', onChange)
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    const onEnter = () => setIsPiP(true)
+    const onLeave = () => setIsPiP(false)
+    (document as any).addEventListener?.('enterpictureinpicture', onEnter)
+    (document as any).addEventListener?.('leavepictureinpicture', onLeave)
+    return () => {
+      (document as any).removeEventListener?.('enterpictureinpicture', onEnter)
+      (document as any).removeEventListener?.('leavepictureinpicture', onLeave)
+    }
+  }, [])
+
   const handleError = useCallback(() => {
     setPlayerState(prev => ({
       ...prev,
@@ -100,6 +155,8 @@ export function VideoPlayer({
   // Choice selection handler
   const handleChoiceClick = useCallback((choice: Choice) => {
     setShowChoiceOverlay(false)
+    // Haptic feedback on mobile
+    try { navigator.vibrate?.(30) } catch {}
     onChoiceSelect(choice)
   }, [onChoiceSelect])
 
@@ -121,6 +178,17 @@ export function VideoPlayer({
       })
     }
   }, [playerState.isLoaded, autoPlay])
+
+  // React to external pause/resume
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !playerState.isLoaded) return
+    if (externalPaused) {
+      v.pause()
+    } else if (autoPlay) {
+      v.play().catch(() => {})
+    }
+  }, [externalPaused, autoPlay, playerState.isLoaded])
 
   // Reset overlay when video URL changes
   useEffect(() => {
@@ -149,9 +217,37 @@ export function VideoPlayer({
         onEnded={handleEnded}
         onError={handleError}
         playsInline
-        preload="metadata"
-        muted={autoPlay} // Mute for autoplay compliance
+        preload={saveData ? 'none' : 'metadata'}
+        muted={muted ?? autoPlay} // Prefer explicit muted prop; fallback to autoplay policy
       />
+
+      {/* AR Face Overlay (if enabled and supported) */}
+      {enableAR && (
+        <ARWrapper videoRef={videoRef} />
+      )}
+
+      {/* Watermark overlay */}
+      {watermark && (
+        <div className="absolute bottom-2 right-2 text-white/80 text-xs bg-black/40 px-2 py-1 rounded">Splintr</div>
+      )}
+
+      {/* Top-right utilities */}
+      <div className="absolute top-2 right-2 z-10 flex gap-2">
+        <button
+          onClick={enterPiP}
+          className="text-white bg-black/40 hover:bg-black/60 rounded px-2 py-1 text-xs"
+          aria-label="Toggle picture-in-picture"
+        >
+          {isPiP ? 'Exit PiP' : 'PiP'}
+        </button>
+        <button
+          onClick={cacheOffline}
+          className="text-white bg-black/40 hover:bg-black/60 rounded px-2 py-1 text-xs"
+          aria-label="Save for offline"
+        >
+          Save
+        </button>
+      </div>
 
       {/* Video Progress Bar */}
       {showProgressBar && playerState.isLoaded && (
@@ -261,6 +357,8 @@ function ChoiceOverlay({
 }: ChoiceOverlayProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null)
+  const [speechEnabled, setSpeechEnabled] = useState<boolean>(false)
+  const recognitionRef = React.useRef<any>(null)
 
   // Animate in
   useEffect(() => {
@@ -273,6 +371,46 @@ function ChoiceOverlay({
     // Add slight delay for selection animation
     setTimeout(() => onChoiceSelect(choice), 200)
   }
+
+  // Voice command handling using Web Speech API (if available)
+  React.useEffect(() => {
+    const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) return
+    recognitionRef.current = new SR()
+    recognitionRef.current.continuous = true
+    recognitionRef.current.lang = 'en-US'
+    recognitionRef.current.interimResults = false
+    recognitionRef.current.onresult = (event: any) => {
+      const last = event.results[event.results.length - 1]
+      if (!last || !last.isFinal) return
+      const transcript = String(last[0].transcript || '').toLowerCase()
+      // Map commands: "one", "two", "left", "right", "select <n>"
+      const map = new Map<number, Choice>()
+      choices.forEach((c, i) => map.set(i + 1, c))
+      const trySelect = (n: number) => { const c = map.get(n); if (c) handleChoiceClick(c) }
+      if (/\b(one|1)\b/.test(transcript)) return trySelect(1)
+      if (/\b(two|2)\b/.test(transcript)) return trySelect(2)
+      if (/\bthree|3\b/.test(transcript)) return trySelect(3)
+      if (/left/.test(transcript)) return trySelect(1)
+      if (/right/.test(transcript)) return trySelect(2)
+      const m = transcript.match(/select\s+(\d+)/)
+      if (m) return trySelect(parseInt(m[1], 10))
+    }
+    return () => { try { recognitionRef.current?.stop?.() } catch {} }
+  }, [choices])
+
+  React.useEffect(() => {
+    if (!recognitionRef.current) return
+    try {
+      if (isVisible) {
+        recognitionRef.current.start()
+        setSpeechEnabled(true)
+      } else {
+        recognitionRef.current.stop()
+        setSpeechEnabled(false)
+      }
+    } catch {}
+  }, [isVisible])
 
   const getTransitionClasses = () => {
     const duration = `duration-${transitionEffect.duration || 300}`
@@ -399,4 +537,18 @@ function ChoiceOverlay({
       `}</style>
     </div>
   )
+}
+
+// Lazy AR overlay to avoid SSR issues and optional dependency
+function ARWrapper({ videoRef }: { videoRef: React.RefObject<HTMLVideoElement> }) {
+  const [Comp, setComp] = React.useState<React.FC<{ videoRef: React.RefObject<HTMLVideoElement>; enabled?: boolean }> | null>(null)
+  React.useEffect(() => {
+    let mounted = true
+    import('@/components/ar/FaceOverlay')
+      .then(m => { if (mounted) setComp(() => m.FaceOverlay as any) })
+      .catch(() => {})
+    return () => { mounted = false }
+  }, [])
+  if (!Comp) return null
+  return <Comp videoRef={videoRef} enabled />
 }

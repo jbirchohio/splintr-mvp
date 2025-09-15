@@ -5,6 +5,7 @@ import { withSecurity } from '@/lib/security-middleware'
 import { validationSchemas } from '@/lib/validation-schemas'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { Database } from '@/types/database.types'
+import { isAdminBySupabase } from '@/lib/auth-helpers'
 
 type ContentFlagRow = Database['public']['Tables']['content_flags']['Row']
 
@@ -13,8 +14,7 @@ export const POST = withSecurity(
   withValidation({
     bodySchema: validationSchemas.moderation.flag,
     requireAuth: true,
-    rateLimit: RATE_LIMITS.MODERATION,
-    allowedContentTypes: ['application/json']
+    rateLimit: RATE_LIMITS.MODERATION
   })(async (request, { body, user }) => {
     try {
       const { contentType, contentId, reason, description } = body
@@ -122,8 +122,9 @@ export const GET = withSecurity(
     rateLimit: RATE_LIMITS.READ
   })(async (request, { query, user }) => {
     try {
-      // TODO: Implement admin role check
-      // For now, any authenticated user can view flags (should be restricted)
+      if (!(await isAdminBySupabase(user.id))) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
       
       const { 
         page = 1, 

@@ -1,0 +1,150 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  commitlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Lint commits (Conventional Commits)
+        uses: wagoid/commitlint-github-action@v6
+
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      node-cache: ${{ steps.cache-key.outputs.key }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: cache-key
+        run: echo "key=node20" >> $GITHUB_OUTPUT
+
+  lint_typecheck:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run type-check
+      - run: npm run lint
+
+  unit_tests:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+      - run: npm test -- --ci
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint_typecheck, unit_tests]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps
+      - name: Run E2E
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co'
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key'
+          SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key'
+          SKIP_RATE_LIMIT: 'true'
+          NEXT_PUBLIC_E2E: 'true'
+        run: npm run test:e2e
+
+  security_scan:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+      - name: NPM Audit (fail on high)
+        run: npm audit --omit=dev --audit-level=high
+      - name: Trivy FS scan
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          scan-type: 'fs'
+          scan-ref: .
+          format: 'table'
+          ignore-unfixed: true
+          severity: 'HIGH,CRITICAL'
+
+  sbom:
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run sbom
+      - run: npm run licenses:report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom-and-licenses
+          path: |
+            bom.json
+            licenses.json
+
+  k6_smoke:
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.co'
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key'
+      SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key'
+      SKIP_RATE_LIMIT: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+      - name: Start dev server
+        run: |
+          nohup npm run dev -- --port 3000 >/dev/null 2>&1 &
+          for i in {1..60}; do curl -sSf http://localhost:3000/ >/dev/null && break || sleep 2; done
+      - name: Run k6 smoke (feed)
+        uses: grafana/k6-action@v0.2.0
+        with:
+          filename: load/feed.js
+          flags: --vus 5 --duration 30s
+        env:
+          BASE_URL: http://localhost:3000

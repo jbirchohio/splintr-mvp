@@ -4,3 +4,4 @@ export { FeedItem } from './FeedItem';
 export { FeedHeader } from './FeedHeader';
 export { CreatorFeed } from './CreatorFeed';
 export { FeaturedCreators } from './FeaturedCreators';
+export { VerticalFeed } from './VerticalFeed';

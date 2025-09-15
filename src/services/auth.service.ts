@@ -8,6 +8,9 @@ export class AuthService {
    */
   async signInWithGoogle(): Promise<AuthResult> {
     try {
+      if (process.env.NEXT_PUBLIC_E2E === 'true') {
+        return { user: { id: 'e2e-user', email: 'e2e@example.com', name: 'E2E User' } as User }
+      }
       const { data, error } = await supabase.auth.signInWithOAuth(oauthProviders.google)
       
       if (error) {
@@ -28,6 +31,9 @@ export class AuthService {
    */
   async signInWithApple(): Promise<AuthResult> {
     try {
+      if (process.env.NEXT_PUBLIC_E2E === 'true') {
+        return { user: { id: 'e2e-user', email: 'e2e@example.com', name: 'E2E User' } as User }
+      }
       const { data, error } = await supabase.auth.signInWithOAuth(oauthProviders.apple)
       
       if (error) {
@@ -48,6 +54,9 @@ export class AuthService {
    */
   async signOut(): Promise<void> {
     try {
+      if (process.env.NEXT_PUBLIC_E2E === 'true') {
+        return
+      }
       const { error } = await supabase.auth.signOut()
       
       if (error) {
@@ -65,6 +74,15 @@ export class AuthService {
    */
   async getCurrentUser(): Promise<User | null> {
     try {
+      if (process.env.NEXT_PUBLIC_E2E === 'true') {
+        return {
+          id: 'e2e-user',
+          email: 'e2e@example.com',
+          name: 'E2E User',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as User
+      }
       const { data: { session }, error } = await supabase.auth.getSession()
       
       if (error || !session) {
@@ -105,6 +123,9 @@ export class AuthService {
    */
   async refreshToken(): Promise<string> {
     try {
+      if (process.env.NEXT_PUBLIC_E2E === 'true') {
+        return 'e2e-token'
+      }
       const { data, error } = await supabase.auth.refreshSession()
       
       if (error || !data.session) {
@@ -122,6 +143,13 @@ export class AuthService {
    * Listen to authentication state changes
    */
   onAuthStateChange(callback: (user: User | null) => void) {
+    if (process.env.NEXT_PUBLIC_E2E === 'true') {
+      // Simple mock subscription
+      const unsub = { unsubscribe: () => {} }
+      // Immediately notify with current E2E user
+      Promise.resolve().then(() => callback({ id: 'e2e-user', email: 'e2e@example.com', name: 'E2E User' } as User))
+      return { data: { subscription: unsub } }
+    }
     return supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
         const user = await this.getCurrentUser()

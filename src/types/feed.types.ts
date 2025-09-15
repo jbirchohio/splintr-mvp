@@ -9,6 +9,9 @@ export interface FeedItem {
   viewCount: number;
   publishedAt: string;
   engagementScore?: number;
+  category?: string | null;
+  isPremium?: boolean;
+  tipEnabled?: boolean;
 }
 
 export interface FeedResponse {

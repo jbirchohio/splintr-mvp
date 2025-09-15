@@ -12,7 +12,8 @@ SELECT
     s.created_at,
     u.id as creator_id,
     u.name as creator_name,
-    u.avatar_url as creator_avatar
+    u.avatar_url as creator_avatar,
+    COALESCE(u.is_verified, false) as creator_verified
 FROM stories s
 JOIN users u ON s.creator_id = u.id
 WHERE s.is_published = true

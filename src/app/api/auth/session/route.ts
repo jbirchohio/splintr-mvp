@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { withValidation } from '@/lib/validation-middleware'
 import { withSecurity } from '@/lib/security-middleware'
 import { RATE_LIMITS } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 export const GET = withSecurity(
   withValidation({
@@ -12,7 +13,7 @@ export const GET = withSecurity(
     const { data: { session }, error } = await supabase.auth.getSession()
     
     if (error) {
-      console.error('Session error:', error.message)
+      logger.error({ err: error }, 'Session error')
       return NextResponse.json(
         { error: 'Failed to get session' },
         { status: 500 }
@@ -31,7 +32,7 @@ export const GET = withSecurity(
       .single()
 
     if (profileError && profileError.code !== 'PGRST116') {
-      console.error('Profile fetch error:', profileError.message)
+      logger.error({ err: profileError }, 'Profile fetch error')
     }
 
     return NextResponse.json({
@@ -44,7 +45,7 @@ export const GET = withSecurity(
       }
     })
   } catch (error) {
-    console.error('Session error:', error)
+    logger.error({ err: error }, 'Session error')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

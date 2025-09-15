@@ -58,7 +58,8 @@ export function VideoSelector({ onSelect, onClose }: VideoSelectorProps) {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  const formatDate = (date: Date) => {
+  const formatDate = (dateLike: Date | string | number) => {
+    const date = typeof dateLike === 'string' || typeof dateLike === 'number' ? new Date(dateLike) : dateLike
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',
       day: 'numeric',

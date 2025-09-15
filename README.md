@@ -2,6 +2,10 @@
 
 Splintr is an MVP social storytelling platform that enables creators to build interactive, branching video narratives. The app targets Gen Z and Millennial content creators who want to move beyond linear video content into interactive storytelling.
 
+## Agent Guide
+
+For task lists, specs, and steering docs, see `AGENTS.md` at the repo root. Key planning docs live under `.kiro/` (e.g., `.kiro/specs/splintr-mvp/tasks.md`).
+
 ## Features
 
 - **Interactive Storytelling**: Create branching video narratives with choice points
@@ -59,6 +63,17 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) to see the application.
 
+## Deployment
+
+- Environment matrix: see `docs/env-matrix.md`
+- Vercel deployment guide: `docs/deploy-vercel.md`
+- Docker deployment guide: `docs/deploy-docker.md`
+- Sale-readiness audit: `docs/sale-readiness-audit.md`
+- Ops Runbook: `docs/ops-runbook.md`
+- Observability: `docs/observability.md` (OpenTelemetry tracing + logs)
+ - Admin roles: `docs/admin-roles.md`
+ - Legal: `docs/legal/EULA.md`, `docs/legal/SLA.md`, `docs/legal/Support.md`
+
 ## Development Commands
 
 ```bash
@@ -106,3 +121,12 @@ src/
 ## License
 
 This project is licensed under the MIT License.
+
+## Releases
+
+- Follow Conventional Commits (feat, fix, docs, chore, refactor, perf, test) to enable changelog generation.
+- Maintain `CHANGELOG.md` with notable changes per release.
+- CI enforces commit message style via commitlint on PRs.
+- Release automation: Release Please opens release PRs and publishes GitHub Releases with changelog on merge.
+- Security scans: npm audit (high/critical) and Trivy FS scan; CodeQL weekly.
+ - Labels: repo labels are synced from `.github/labels.yml` (release and conventional types).

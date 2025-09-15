@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { QueryProvider } from "@/components/providers/QueryProvider";
 import CookieConsent from "@/components/privacy/CookieConsent";
+import { ServiceWorkerProvider } from "@/components/providers/ServiceWorkerProvider";
+import { ToastProvider } from "@/components/ui/Toast";
+import { ThemeProvider, ThemeToggle } from "@/components/providers/ThemeProvider";
+import { HeaderBar } from "@/components/navigation/HeaderBar";
+import { NativeProvider } from "@/components/providers/NativeProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,6 +23,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Splintr - Interactive Stories",
   description: "Create and explore interactive branching video stories",
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({
@@ -29,10 +36,19 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthProvider>
-          {children}
-          <CookieConsent />
-        </AuthProvider>
+        <QueryProvider>
+          <AuthProvider>
+            <ThemeProvider>
+              <ToastProvider>
+                <HeaderBar />
+                {children}
+                <CookieConsent />
+                <ServiceWorkerProvider />
+                <NativeProvider />
+              </ToastProvider>
+            </ThemeProvider>
+          </AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );

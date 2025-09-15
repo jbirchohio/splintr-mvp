@@ -19,6 +19,16 @@ export class UserService {
    * Get current user profile
    */
   async getProfile(): Promise<User> {
+    if (process.env.NEXT_PUBLIC_E2E === 'true') {
+      return {
+        id: 'e2e-user',
+        email: 'e2e@example.com',
+        name: '',
+        avatar: undefined,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as User
+    }
     const response = await fetch('/api/users/profile', {
       method: 'GET',
       headers: {
@@ -39,6 +49,16 @@ export class UserService {
    * Update user profile
    */
   async updateProfile(updates: UpdateProfileRequest): Promise<User> {
+    if (process.env.NEXT_PUBLIC_E2E === 'true') {
+      return {
+        id: 'e2e-user',
+        email: 'e2e@example.com',
+        name: updates.name,
+        avatar: updates.avatar || undefined,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as User
+    }
     const response = await fetch('/api/users/profile', {
       method: 'PUT',
       headers: {

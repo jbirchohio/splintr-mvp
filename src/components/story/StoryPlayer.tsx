@@ -38,7 +38,11 @@ export function StoryPlayer({
   storyId, 
   onComplete, 
   onError, 
-  autoStart = true 
+  autoStart = true,
+  muted,
+  paused,
+  onVideoLoaded,
+  watermark
 }: StoryPlayerProps) {
   // Get current user for exploration tracking
   const [userId, setUserId] = useState<string | undefined>()
@@ -97,6 +101,9 @@ export function StoryPlayer({
       try {
         const video = await getVideoById(state.currentNode.videoId)
         setCurrentVideo(video)
+        try {
+          onVideoLoaded?.({ streamingUrl: video.streamingUrl })
+        } catch {}
       } catch (error) {
         console.error('Failed to load video:', error)
         onError?.(error as Error)
@@ -119,8 +126,16 @@ export function StoryPlayer({
 
   // Handle choice selection
   const handleChoiceSelect = useCallback((choice: Choice) => {
+    try {
+      // Log choice selection (best-effort)
+      fetch('/api/engagement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentType: 'story', contentId: storyId, action: 'choice', metadata: { choiceId: choice.id } })
+      }).catch(() => {})
+    } catch {}
     controls.selectChoice(choice.id)
-  }, [controls])
+  }, [controls, storyId])
 
   // Handle video end (for nodes without choices)
   const handleVideoEnd = useCallback(() => {
@@ -199,6 +214,10 @@ export function StoryPlayer({
         onVideoEnd={handleVideoEnd}
         onChoiceSelect={handleChoiceSelect}
         autoPlay={autoStart}
+        muted={muted}
+        externalPaused={paused}
+        watermark={watermark}
+        enableAR={true}
         showChoices={!state.isComplete}
         className="w-full h-full"
         immersiveMode={true}

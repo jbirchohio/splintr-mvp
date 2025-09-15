@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generateCSPHeader } from './sanitization'
+import { logger } from './logger'
 
 // Security headers configuration
 export const SECURITY_HEADERS = {
@@ -288,12 +289,12 @@ export function withSecurity<T extends unknown[]>(
       // Detect suspicious activity
       const suspiciousCheck = detectSuspiciousActivity(request)
       if (suspiciousCheck.isSuspicious) {
-        console.warn('Suspicious activity detected:', {
+        logger.warn({
           url: request.url,
           method: request.method,
           userAgent: request.headers.get('user-agent'),
           reasons: suspiciousCheck.reasons
-        })
+        }, 'Suspicious activity detected')
 
         // For now, just log. In production, you might want to block or rate limit
         // return addSecurityHeaders(
@@ -310,7 +311,7 @@ export function withSecurity<T extends unknown[]>(
       // Add security headers and CORS
       return addSecurityHeaders(handleCORS(request, response))
     } catch (error) {
-      console.error('Security middleware error:', error)
+      logger.error({ err: error }, 'Security middleware error')
       
       return addSecurityHeaders(
         NextResponse.json(

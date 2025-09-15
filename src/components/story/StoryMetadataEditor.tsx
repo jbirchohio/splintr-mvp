@@ -23,6 +23,11 @@ export const StoryMetadataEditor: React.FC<StoryMetadataEditorProps> = ({
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
+  // New: hashtags, scheduling, monetization
+  const [tags, setTags] = useState<string>('')
+  const [scheduledAt, setScheduledAt] = useState<string>('')
+  const [isPremium, setIsPremium] = useState<boolean>(false)
+  const [tipEnabled, setTipEnabled] = useState<boolean>(false)
 
   // Auto-save timer
   useEffect(() => {
@@ -40,6 +45,15 @@ export const StoryMetadataEditor: React.FC<StoryMetadataEditorProps> = ({
     const titleChanged = title !== story.title
     const descriptionChanged = description !== (story.description || '')
     setHasChanges(titleChanged || descriptionChanged)
+    // Best-effort init for new fields when component mounts
+  }, [title, description, story.title, story.description])
+
+  useEffect(() => {
+    // initialize scheduling/monetization from story if present
+    const anyStory: any = story as any
+    if (anyStory.scheduled_publish_at) setScheduledAt(new Date(anyStory.scheduled_publish_at).toISOString().slice(0,16))
+    if (typeof anyStory.is_premium === 'boolean') setIsPremium(anyStory.is_premium)
+    if (typeof anyStory.tip_enabled === 'boolean') setTipEnabled(anyStory.tip_enabled)
   }, [title, description, story.title, story.description])
 
   const handleAutoSave = async () => {
@@ -112,6 +126,35 @@ export const StoryMetadataEditor: React.FC<StoryMetadataEditorProps> = ({
       setLastSaved(new Date())
       setHasChanges(false)
       onSave?.({ title: title.trim(), description: description.trim() || undefined })
+
+      // Save hashtags (comma-separated)
+      try {
+        const tagList = tags.split(',').map(t => t.trim()).filter(Boolean)
+        if (tagList.length > 0) {
+          await fetch(`/api/stories/${story.id}/tags`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tags: tagList })
+          })
+        }
+      } catch {}
+
+      // Save scheduling (optional)
+      try {
+        if (scheduledAt && scheduledAt.length >= 16) {
+          const iso = new Date(scheduledAt).toISOString()
+          await fetch(`/api/stories/${story.id}/schedule`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scheduledAt: iso })
+          })
+        } else if (scheduledAt === '') {
+          await fetch(`/api/stories/${story.id}/schedule`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scheduledAt: null }) })
+        }
+      } catch {}
+
+      // Save monetization flags
+      try {
+        await fetch(`/api/stories/${story.id}/monetization`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isPremium, tipEnabled }) })
+      } catch {}
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save metadata')
     } finally {
@@ -178,7 +221,48 @@ export const StoryMetadataEditor: React.FC<StoryMetadataEditorProps> = ({
               <p className="text-xs text-gray-500">{description.length}/1000</p>
             </div>
           </div>
+
+          {/* Hashtags */}
+          <div>
+            <label htmlFor="hashtags" className="block text-sm font-medium text-gray-700 mb-1">Hashtags (comma-separated)</label>
+            <input id="hashtags" type="text" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="#mystery, #horror" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            <p className="text-xs text-gray-500 mt-1">Use up to ~5 short tags. We normalize them.</p>
+          </div>
+
+          {/* Scheduling */}
+          <div>
+            <label htmlFor="schedule" className="block text-sm font-medium text-gray-700 mb-1">Schedule publish (optional)</label>
+            <input id="schedule" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg" />
+            <p className="text-xs text-gray-500 mt-1">If set, story will auto-publish at this time (UTC).</p>
+          </div>
+
+          {/* Monetization */}
+          <div className="flex items-center gap-6">
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={isPremium} onChange={(e) => setIsPremium(e.target.checked)} />
+              Premium content
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={tipEnabled} onChange={(e) => setTipEnabled(e.target.checked)} />
+              Tips enabled
+            </label>
+          </div>
         </div>
+          {/* Hashtags */}
+          <div>
+            <label htmlFor="hashtags" className="block text-sm font-medium text-gray-700 mb-1">
+              Hashtags (comma-separated)
+            </label>
+            <input
+              id="hashtags"
+              type="text"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="#mystery, #horror"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">Use up to ~5 short tags. We normalize them.</p>
+          </div>
 
         {/* Auto-save status */}
         {autoSave && (

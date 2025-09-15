@@ -5,6 +5,10 @@ import { withSecurity } from '@/lib/security-middleware'
 import { validationSchemas } from '@/lib/validation-schemas'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { Database } from '@/types/database.types'
+import { logger } from '@/lib/logger'
+import { FeedCacheService } from '@/services/cache.service'
+import { cacheService, REDIS_KEYS } from '@/lib/redis'
+import { isAdminBySupabase } from '@/lib/auth-helpers'
 
 type StoryRow = Database['public']['Tables']['stories']['Row']
 
@@ -34,6 +38,9 @@ export const GET = withSecurity(
           created_at,
           updated_at,
           published_at,
+          category,
+          is_premium,
+          tip_enabled,
           users!stories_creator_id_fkey (
             id,
             name,
@@ -44,8 +51,7 @@ export const GET = withSecurity(
 
       // Apply category filter if provided
       if (category) {
-        // TODO: Add category support to stories table
-        // queryBuilder = queryBuilder.eq('category', category)
+        queryBuilder = queryBuilder.eq('category', category)
       }
 
       // Apply sorting
@@ -72,7 +78,7 @@ export const GET = withSecurity(
       const { data: stories, error, count } = await queryBuilder
 
       if (error) {
-        console.error('Feed fetch error:', error.message)
+        logger.error({ err: error }, 'Feed fetch error')
         return NextResponse.json(
           { error: 'Failed to fetch feed' },
           { status: 500 }
@@ -86,6 +92,9 @@ export const GET = withSecurity(
           description: story.description,
           thumbnailUrl: story.thumbnail_url,
           viewCount: story.view_count,
+          category: (story as any).category || null,
+          isPremium: (story as any).is_premium || false,
+          tipEnabled: (story as any).tip_enabled || false,
           createdAt: story.created_at,
           updatedAt: story.updated_at,
           publishedAt: story.published_at,
@@ -107,7 +116,7 @@ export const GET = withSecurity(
         }
       })
     } catch (error) {
-      console.error('Feed fetch error:', error)
+      logger.error({ err: error }, 'Feed fetch error')
       return NextResponse.json(
         { error: 'Internal server error' },
         { status: 500 }
@@ -126,21 +135,20 @@ export const POST = withSecurity(
     }
   })(async (request, { user }) => {
     try {
-      // TODO: Implement admin role check
-      // For now, any authenticated user can refresh
-      
-      // TODO: Implement cache refresh logic
-      // This would typically involve:
-      // 1. Clearing Redis cache
-      // 2. Pre-warming cache with fresh data
-      // 3. Updating cache timestamps
+      if (!(await isAdminBySupabase(user.id))) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      // Invalidate feed caches and set last refresh timestamp
+      const feedCache = new FeedCacheService()
+      await feedCache.invalidateAllFeeds()
+      await cacheService.set(REDIS_KEYS.FEED_LAST_REFRESH, new Date().toISOString(), 3600)
 
       return NextResponse.json({
         message: 'Feed cache refresh initiated',
         timestamp: new Date().toISOString()
       })
     } catch (error) {
-      console.error('Feed refresh error:', error)
+      logger.error({ err: error }, 'Feed refresh error')
       return NextResponse.json(
         { error: 'Internal server error' },
         { status: 500 }

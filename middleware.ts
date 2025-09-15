@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 export async function middleware(request: NextRequest) {
+  // E2E bypass to avoid external auth calls and redirects during browser tests
+  if (process.env.NEXT_PUBLIC_E2E === 'true') {
+    return NextResponse.next()
+  }
   const { pathname, protocol, host } = request.nextUrl
 
   // Enforce HTTPS in production
@@ -13,8 +17,11 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/invite') ||
+    pathname.startsWith('/api/referrals') ||
     pathname.startsWith('/auth') ||
     pathname === '/' ||
+    pathname.startsWith('/invite') ||
     pathname.includes('.')
   ) {
     return NextResponse.next()
@@ -40,6 +47,12 @@ export async function middleware(request: NextRequest) {
     const redirectUrl = new URL('/auth/signin', request.url)
     redirectUrl.searchParams.set('redirectTo', pathname)
     return NextResponse.redirect(redirectUrl)
+  }
+
+  // Invite-only gating: allow if invite_ok cookie present
+  if (process.env.NEXT_PUBLIC_INVITE_ONLY === 'true' && session && !request.cookies.get('invite_ok') && !pathname.startsWith('/invite')) {
+    const url = new URL('/invite', request.url)
+    return NextResponse.redirect(url)
   }
 
   // Add user info to headers for API routes

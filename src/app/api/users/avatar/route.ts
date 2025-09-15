@@ -6,6 +6,7 @@ import { withSecurity } from '@/lib/security-middleware'
 import { validationSchemas } from '@/lib/validation-schemas'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { sanitizeFileUpload } from '@/lib/sanitization'
+import { logger } from '@/lib/logger'
 
 type UserRow = Database['public']['Tables']['users']['Row']
 
@@ -54,7 +55,7 @@ export const POST = withSecurity(
       })
 
     if (uploadError) {
-      console.error('Avatar upload error:', uploadError.message)
+      logger.error({ err: uploadError }, 'Avatar upload error')
       return NextResponse.json(
         { error: 'Failed to upload avatar' },
         { status: 500 }
@@ -78,7 +79,7 @@ export const POST = withSecurity(
       .eq('id', user.id)
 
     if (updateError) {
-      console.error('Profile update error:', updateError.message)
+      logger.error({ err: updateError }, 'Profile update error')
       // Try to clean up uploaded file
       await supabase.storage.from('user-avatars').remove([filePath])
       
@@ -93,7 +94,7 @@ export const POST = withSecurity(
       message: 'Avatar uploaded successfully'
     })
   } catch (error) {
-    console.error('Avatar upload error:', error)
+    logger.error({ err: error }, 'Avatar upload error')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -118,7 +119,7 @@ export const DELETE = withSecurity(
       .single()
 
     if (fetchError) {
-      console.error('Profile fetch error:', fetchError.message)
+      logger.error({ err: fetchError }, 'Profile fetch error')
       return NextResponse.json(
         { error: 'Failed to fetch profile' },
         { status: 500 }
@@ -139,7 +140,7 @@ export const DELETE = withSecurity(
       .eq('id', user.id)
 
     if (updateError) {
-      console.error('Profile update error:', updateError.message)
+      logger.error({ err: updateError }, 'Profile update error')
       return NextResponse.json(
         { error: 'Failed to remove avatar' },
         { status: 500 }
@@ -157,7 +158,7 @@ export const DELETE = withSecurity(
           .remove([filePath])
       } catch (storageError) {
         // Log but don't fail the request if storage cleanup fails
-        console.error('Storage cleanup error:', storageError)
+        logger.error({ err: storageError }, 'Storage cleanup error')
       }
     }
 
@@ -165,7 +166,7 @@ export const DELETE = withSecurity(
       message: 'Avatar removed successfully'
     })
   } catch (error) {
-    console.error('Avatar removal error:', error)
+    logger.error({ err: error }, 'Avatar removal error')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

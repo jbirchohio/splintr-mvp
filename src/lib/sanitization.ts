@@ -86,23 +86,48 @@ export function sanitizeInput(
     }
   }
 
-  // Detect and prevent SQL injection
-  if (preventSqlInjection) {
-    for (const pattern of SQL_INJECTION_PATTERNS) {
-      if (pattern.test(sanitized)) {
-        threats.push('SQL_INJECTION')
-        // Remove SQL injection patterns
-        sanitized = sanitized.replace(pattern, '')
-        wasModified = true
-      }
-    }
+  // Remove explicit <script> blocks including content
+  const beforeScriptRemoval = sanitized
+  sanitized = sanitized.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+  if (sanitized !== beforeScriptRemoval) {
+    wasModified = true
+    threats.push('XSS')
+  }
+  // Remove any remaining HTML tags (defense-in-depth)
+  const beforeTagRemoval = sanitized
+  sanitized = sanitized.replace(/<[^>]*>/g, '')
+  if (sanitized !== beforeTagRemoval) {
+    wasModified = true
+    threats.push('XSS')
   }
 
   // Detect and prevent XSS
   if (preventXss) {
+    // Flag obvious XSS patterns
     for (const pattern of XSS_PATTERNS) {
       if (pattern.test(sanitized)) {
         threats.push('XSS')
+      }
+    }
+
+    // Sanitize HTML using DOMPurify
+    const before = sanitized
+    const purifyOptions = allowHtml
+      ? { ALLOWED_TAGS: allowedTags, ALLOWED_ATTR: allowedAttributes }
+      : { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }
+    sanitized = DOMPurify.sanitize(sanitized, purifyOptions as any)
+    if (sanitized !== before) {
+      wasModified = true
+    }
+  }
+
+  // Detect and prevent SQL injection (after XSS handling)
+  if (preventSqlInjection) {
+    for (const pattern of SQL_INJECTION_PATTERNS) {
+      const before = sanitized
+      sanitized = sanitized.replace(pattern, '')
+      if (sanitized !== before) {
+        threats.push('SQL_INJECTION')
         wasModified = true
       }
     }

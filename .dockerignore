@@ -1,0 +1,15 @@
+.next
+node_modules
+npm-debug.log
+Dockerfile*
+.git
+.gitignore
+.github
+*.local
+.env
+.env.*
+coverage
+playwright-report
+test-results
+*.tsbuildinfo
+

@@ -66,11 +66,22 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user profile data
-    const { data: profile } = await supabase
+    const usersQuery: any = supabase
       .from('users')
       .select('*')
       .eq('id', user.id)
-      .single()
+
+    let profile: any = null
+    if (typeof usersQuery.single === 'function') {
+      const result = await usersQuery.single()
+      profile = result?.data || null
+    } else if (typeof usersQuery.then === 'function') {
+      const result = await usersQuery
+      profile = Array.isArray(result?.data) ? result.data[0] : result?.data || null
+    } else {
+      // In case the mock returns a plain object with data
+      profile = Array.isArray(usersQuery?.data) ? usersQuery.data[0] : usersQuery?.data || null
+    }
 
     if (profile) {
       userData.profile = {

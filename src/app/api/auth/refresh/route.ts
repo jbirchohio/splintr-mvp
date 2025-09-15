@@ -8,8 +8,7 @@ import { RATE_LIMITS } from '@/lib/rate-limit'
 export const POST = withSecurity(
   withValidation({
     bodySchema: validationSchemas.auth.refresh,
-    rateLimit: RATE_LIMITS.AUTH,
-    allowedContentTypes: ['application/json']
+    rateLimit: RATE_LIMITS.AUTH
   })(async (request, { body }) => {
   try {
     const { refreshToken } = body

@@ -5,10 +5,11 @@ import { Alert } from '@/components/ui/Alert'
 import { VideoSelector } from './VideoSelector'
 import { ChoiceEditor } from './ChoiceEditor'
 import { cn } from '@/utils/helpers'
+import { useEffect } from 'react'
 
 interface StoryNodeEditorProps {
   node: StoryNode
-  availableNodes: StoryNode[]
+  availableNodes: { node: StoryNode; displayIndex: number }[]
   onNodeUpdate: (updates: Partial<StoryNode>) => void
   onChoiceAdd: () => void
   onChoiceUpdate: (choiceId: string, updates: Partial<Choice>) => void
@@ -24,6 +25,46 @@ export function StoryNodeEditor({
   onChoiceDelete
 }: StoryNodeEditorProps) {
   const [showVideoSelector, setShowVideoSelector] = useState(false)
+  const [effects, setEffects] = useState<{ code: string; name: string; params: any }[]>([])
+  const [stickers, setStickers] = useState<{ code: string; name: string; public_id: string }[]>([])
+  const [tracks, setTracks] = useState<{ id: string; title: string; artist: string }[]>([])
+  const [selectedEffect, setSelectedEffect] = useState<string>('')
+  const [textOverlay, setTextOverlay] = useState<{ text: string; size: number; color: string }>({ text: '', size: 36, color: '#FFFFFF' })
+  const [selectedStickers, setSelectedStickers] = useState<{ stickerCode: string; x?: number; y?: number; width?: number; height?: number }[]>([])
+  const [selectedTrackId, setSelectedTrackId] = useState<string>('')
+  const [applyBusy, setApplyBusy] = useState(false)
+  const [applyResultUrl, setApplyResultUrl] = useState<string>('')
+  const [applyError, setApplyError] = useState<string>('')
+  const [videoUrl, setVideoUrl] = useState<string>('')
+
+  useEffect(() => {
+    // Load libraries
+    ;(async () => {
+      try {
+        const [e, s, a] = await Promise.all([
+          fetch('/api/library/effects').then(r => r.json()),
+          fetch('/api/library/stickers').then(r => r.json()),
+          fetch('/api/library/audio-tracks').then(r => r.json())
+        ])
+        setEffects(e.presets || [])
+        setStickers(s.stickers || [])
+        setTracks((a.tracks || []).map((t: any) => ({ id: t.id, title: t.title, artist: t.artist })))
+      } catch {}
+    })()
+  }, [])
+
+  useEffect(() => {
+    // Fetch selected video's streamingUrl to use as source for transforms
+    ;(async () => {
+      if (!node.videoId) { setVideoUrl(''); return }
+      try {
+        const res = await fetch('/api/videos?status=completed')
+        const json = await res.json()
+        const v = (json.videos || []).find((v: any) => v.id === node.videoId)
+        setVideoUrl(v?.streamingUrl || '')
+      } catch { setVideoUrl('') }
+    })()
+  }, [node.videoId])
 
   const handleVideoSelect = (videoId: string) => {
     onNodeUpdate({ videoId })
@@ -55,7 +96,7 @@ export function StoryNodeEditor({
   return (
     <div className="flex-1 flex flex-col bg-white">
       {/* Header */}
-      <div className="p-6 border-b border-gray-200">
+      <div aria-hidden={showVideoSelector} className="p-6 border-b border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900">Edit Node</h2>
         <p className="text-sm text-gray-600 mt-1">
           Configure the video and choices for this story node
@@ -63,7 +104,7 @@ export function StoryNodeEditor({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div aria-hidden={showVideoSelector} className="flex-1 overflow-y-auto p-6 space-y-6">
         {/* Node Type */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-3">
@@ -73,7 +114,7 @@ export function StoryNodeEditor({
             {[
               { value: 'start', label: 'Start Node', description: 'First node in the story' },
               { value: 'middle', label: 'Middle Node', description: 'Continues the story' },
-              { value: 'end', label: 'End Node', description: 'Ends the story path' }
+              { value: 'end', label: 'End Node', description: 'Concludes the story path' }
             ].map(({ value, label, description }) => (
               <button
                 key={value}
@@ -121,6 +162,80 @@ export function StoryNodeEditor({
                     Remove
                   </Button>
                 </div>
+              </div>
+              {/* Effects and Overlays Panel */}
+              <div className="mt-4 border-t pt-4">
+                <h4 className="font-medium text-sm text-gray-900 mb-2">Effects & Overlays</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Effect Preset</label>
+                    <select className="w-full border rounded p-2 text-sm" value={selectedEffect} onChange={(e) => setSelectedEffect(e.target.value)}>
+                      <option value="">None</option>
+                      {effects.map(p => (
+                        <option key={p.code} value={p.code}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Text Overlay</label>
+                    <div className="flex items-center space-x-2">
+                      <input className="flex-1 border rounded p-2 text-sm" placeholder="Text" value={textOverlay.text} onChange={e => setTextOverlay({ ...textOverlay, text: e.target.value })} />
+                      <input className="w-16 border rounded p-2 text-sm" type="number" min={10} max={96} value={textOverlay.size} onChange={e => setTextOverlay({ ...textOverlay, size: parseInt(e.target.value || '36') })} />
+                      <input className="w-10 h-10 border rounded" type="color" value={textOverlay.color} onChange={e => setTextOverlay({ ...textOverlay, color: e.target.value })} />
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <label className="block text-xs font-medium text-gray-700 mb-2">Stickers</label>
+                  <div className="flex flex-wrap gap-2">
+                    {stickers.map(s => {
+                      const selected = selectedStickers.find(ss => ss.stickerCode === s.code)
+                      return (
+                        <button key={s.code} onClick={() => {
+                          if (selected) setSelectedStickers(prev => prev.filter(ss => ss.stickerCode !== s.code))
+                          else setSelectedStickers(prev => [...prev, { stickerCode: s.code }])
+                        }} className={cn('px-2 py-1 rounded border text-xs', selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300')}>{s.name}</button>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Audio Track (optional)</label>
+                  <select className="w-full border rounded p-2 text-sm" value={selectedTrackId} onChange={(e) => setSelectedTrackId(e.target.value)}>
+                    <option value="">None</option>
+                    {tracks.map(t => (
+                      <option key={t.id} value={t.id}>{t.title} — {t.artist}</option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-gray-500 mt-1">Audio plays in viewer; to mux into video, we’ll add a merge step later.</p>
+                </div>
+                <div className="mt-4 flex items-center space-x-2">
+                  <Button disabled={applyBusy || !videoUrl} onClick={async () => {
+                    setApplyBusy(true); setApplyResultUrl(''); setApplyError('')
+                    try {
+                      // Build params
+                      const preset = effects.find(p => p.code === selectedEffect)
+                      const params: any = { effects: preset?.params?.effects || {} }
+                      if (textOverlay.text) params.textOverlay = { text: textOverlay.text, size: textOverlay.size, color: textOverlay.color }
+                      if (selectedStickers.length) params.stickerOverlays = selectedStickers
+                      const res = await fetch('/api/videos/transform', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ videoId: node.videoId, sourceUrl: videoUrl, params }) })
+                      const json = await res.json()
+                      if (!res.ok) throw new Error(json.error || 'Transform failed')
+                      setApplyResultUrl(json.url || '')
+                    } catch (e: any) {
+                      setApplyError(e.message)
+                    } finally { setApplyBusy(false) }
+                  }}>Apply Transform</Button>
+                  {!videoUrl && (
+                    <span className="text-xs text-gray-500">Video URL not found for transform</span>
+                  )}
+                </div>
+                {applyError && (<Alert variant="error" className="mt-2">{applyError}</Alert>)}
+                {applyResultUrl && (
+                  <div className="mt-2 text-xs">
+                    <a href={applyResultUrl} target="_blank" className="text-blue-600 underline">View derived video</a>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -206,7 +321,7 @@ export function StoryNodeEditor({
 
         {!node.isEndNode && node.choices.length === 0 && (
           <Alert variant="warning">
-            Non-end nodes should have at least one choice.
+            Intermediate nodes should have at least one choice.
           </Alert>
         )}
 

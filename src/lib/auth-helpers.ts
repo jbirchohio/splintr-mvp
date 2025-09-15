@@ -1,7 +1,9 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { validateJWTToken, extractTokenFromHeader } from './jwt-utils'
 import { createServerClient } from './supabase'
 import { Database } from '@/types/database.types'
+import { rateLimit, RATE_LIMITS, addRateLimitHeaders } from './rate-limit'
+import { cacheService, CacheTTL } from './redis'
 
 type UserRow = Database['public']['Tables']['users']['Row']
 
@@ -89,18 +91,60 @@ export function withAuth<T extends unknown[]>(
   handler: (request: NextRequest, user: AuthenticatedUser, ...args: T) => Promise<Response>
 ) {
   return async (request: NextRequest, ...args: T): Promise<Response> => {
+    // Apply basic rate limiting by method (READ for GET, GENERAL otherwise)
+    try {
+      const cfg = request.method === 'GET' ? RATE_LIMITS.READ : RATE_LIMITS.GENERAL
+      const rl = await rateLimit(request, cfg.windowMs, cfg.maxRequests)
+      if (!rl.success) {
+        return addRateLimitHeaders(
+          NextResponse.json({ error: 'Rate limit exceeded', retryAfter: rl.retryAfter }, { status: 429 }),
+          rl
+        )
+      }
+    } catch {}
+
     const user = await authenticateRequest(request)
     
     if (!user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { 
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    return handler(request, user, ...args)
+    const res = await handler(request, user, ...args)
+    return res
+  }
+}
+
+/**
+ * Simple admin check using env allowlist (comma-separated user IDs)
+ */
+export function isAdminUser(userId: string | null | undefined): boolean {
+  if (!userId) return false
+  const allow = (process.env.RECS_ADMIN_USER_IDS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+  return allow.includes(userId)
+}
+
+/**
+ * Check admin role from Supabase auth user metadata, with Redis caching.
+ */
+export async function isAdminBySupabase(userId: string | null | undefined): Promise<boolean> {
+  try {
+    if (!userId) return false
+    const cacheKey = `admin:user:${userId}`
+    const cached = await cacheService.get<boolean>(cacheKey)
+    if (typeof cached === 'boolean') return cached
+
+    const sb = createServerClient()
+    // @ts-ignore: admin API available with service role key
+    const { data, error } = await (sb.auth.admin as any).getUserById(userId)
+    if (error) return false
+    const role = (data?.user as any)?.app_metadata?.role
+    const isAdmin = role === 'admin'
+    await cacheService.set(cacheKey, isAdmin, CacheTTL.SHORT)
+    return isAdmin
+  } catch {
+    return false
   }
 }

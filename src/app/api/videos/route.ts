@@ -5,7 +5,9 @@ import { withSecurity } from '@/lib/security-middleware'
 import { validationSchemas } from '@/lib/validation-schemas'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { sanitizeFileUpload } from '@/lib/sanitization'
+import { scanBuffer } from '@/lib/antivirus'
 import { Database } from '@/types/database.types'
+import { logger } from '@/lib/logger'
 
 type VideoRow = Database['public']['Tables']['videos']['Row']
 
@@ -66,7 +68,7 @@ export const GET = withSecurity(
       const { data: videos, error, count } = await queryBuilder
 
       if (error) {
-        console.error('Videos fetch error:', error.message)
+        logger.error({ err: error }, 'Videos fetch error')
         return NextResponse.json(
           { error: 'Failed to fetch videos' },
           { status: 500 }
@@ -99,7 +101,7 @@ export const GET = withSecurity(
         }
       })
     } catch (error) {
-      console.error('Videos fetch error:', error)
+      logger.error({ err: error }, 'Videos fetch error')
       return NextResponse.json(
         { error: 'Internal server error' },
         { status: 500 }
@@ -113,8 +115,7 @@ export const POST = withSecurity(
   withValidation({
     formSchema: validationSchemas.video.upload,
     requireAuth: true,
-    rateLimit: RATE_LIMITS.UPLOAD,
-    allowedContentTypes: ['multipart/form-data']
+    rateLimit: RATE_LIMITS.UPLOAD
   })(async (request, { form, user }) => {
     try {
       const { video: file, title, description } = form
@@ -144,6 +145,18 @@ export const POST = withSecurity(
       const buffer = new Uint8Array(arrayBuffer)
 
       const supabase = createServerClient()
+
+      // Security: virus scan prior to upload
+      const scan = await scanBuffer(buffer)
+      if (!scan.clean) {
+        return NextResponse.json(
+          {
+            error: 'File failed antivirus scan',
+            details: scan.threat || 'UNKNOWN_THREAT',
+          },
+          { status: 400 }
+        )
+      }
       
       // Upload to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -154,7 +167,7 @@ export const POST = withSecurity(
         })
 
       if (uploadError) {
-        console.error('Video upload error:', uploadError.message)
+        logger.error({ err: uploadError }, 'Video upload error')
         return NextResponse.json(
           { error: 'Failed to upload video' },
           { status: 500 }
@@ -182,7 +195,7 @@ export const POST = withSecurity(
         .single()
 
       if (dbError) {
-        console.error('Video record creation error:', dbError.message)
+        logger.error({ err: dbError }, 'Video record creation error')
         // Try to clean up uploaded file
         await supabase.storage.from('videos').remove([filePath])
         
@@ -216,7 +229,7 @@ export const POST = withSecurity(
         }
       }, { status: 201 })
     } catch (error) {
-      console.error('Video upload error:', error)
+      logger.error({ err: error }, 'Video upload error')
       return NextResponse.json(
         { error: 'Internal server error' },
         { status: 500 }

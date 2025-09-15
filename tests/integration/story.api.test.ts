@@ -1,5 +1,5 @@
 import { createMocks } from 'node-mocks-http'
-import handler from '@/pages/api/stories/index'
+import handler from '../shims/pages/api/stories/index'
 import storyHandler from '@/pages/api/stories/[id]'
 import publishHandler from '@/pages/api/stories/[id]/publish'
 import validateHandler from '@/pages/api/stories/[id]/validate'

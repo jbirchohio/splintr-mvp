@@ -1,6 +1,6 @@
-'use client'
+"use client"
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FeedType } from '@/types/feed.types';
 
 interface FeedHeaderProps {
@@ -19,6 +19,13 @@ export function FeedHeader({
   totalItems 
 }: FeedHeaderProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/admin/access').then(r => r.json()).then(d => { if (!cancelled) setIsAdmin(!!d.admin) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   const feedTypes: { value: FeedType; label: string; description: string }[] = [
     {
@@ -91,6 +98,32 @@ export function FeedHeader({
 
           {/* Actions */}
           <div className="flex items-center gap-3">
+            {/* Admin Index */}
+            {isAdmin && (
+            <a
+              href="/admin"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Admin Tools"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2a1 1 0 011 1v2.06a8.002 8.002 0 016.94 6.94H22a1 1 0 110 2h-2.06a8.002 8.002 0 01-6.94 6.94V21a1 1 0 11-2 0v-2.06A8.002 8.002 0 013.06 13H1a1 1 0 110-2h2.06A8.002 8.002 0 019.94 5.06V3a1 1 0 011-1zm0 5a5 5 0 100 10 5 5 0 000-10z"/>
+              </svg>
+              Admin
+            </a>
+            )}
+            {/* Admin: Recs Config */}
+            {isAdmin && (
+            <a
+              href="/admin/recs"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Recommendations Admin"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 8a4 4 0 100 8 4 4 0 000-8zm8-2h-3.17l-1.41-1.41A2 2 0 0014.17 3H9.83a2 2 0 00-1.41.59L7 6H4a2 2 0 00-2 2v2h2V8h3.05l1.41 1.41c.37.37.88.59 1.41.59h4.26c.53 0 1.04-.21 1.41-.59L18.95 8H22v2h2V8a2 2 0 00-2-2z"/>
+              </svg>
+              Recs
+            </a>
+            )}
             {/* Refresh Button */}
             <button
               onClick={onRefresh}

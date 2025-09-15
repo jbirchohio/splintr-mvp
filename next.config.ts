@@ -1,7 +1,8 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  /* config options here */
-};
+  // Silence multi-lockfile root inference by pinning the tracing root
+  outputFileTracingRoot: process.cwd(),
+}
 
-export default nextConfig;
+export default nextConfig

@@ -166,7 +166,11 @@ describe('/api/stories/[id]/preview', () => {
         viewCount: mockPreview.story.viewCount
       },
       validation: mockPreview.validation,
-      moderationStatus: mockPreview.moderationStatus,
+      moderationStatus: {
+        ...mockPreview.moderationStatus,
+        // Dates are serialized to ISO strings in JSON responses
+        scanTimestamp: expect.any(String),
+      },
       isReadyToPublish: mockPreview.isReadyToPublish
     })
     expect(mockStoryService.getStoryPreview).toHaveBeenCalledWith('story-123')

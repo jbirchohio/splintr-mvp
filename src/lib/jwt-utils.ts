@@ -1,4 +1,4 @@
-import { supabaseAdmin } from './supabase'
+import { getSupabaseAdmin } from './supabase'
 
 export interface TokenPayload {
   sub: string // user ID
@@ -14,7 +14,7 @@ export interface TokenPayload {
  */
 export async function validateJWTToken(token: string): Promise<TokenPayload | null> {
   try {
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token)
+    const { data: { user }, error } = await getSupabaseAdmin().auth.getUser(token)
     
     if (error || !user) {
       console.error('JWT validation error:', error?.message)
@@ -40,7 +40,7 @@ export async function validateJWTToken(token: string): Promise<TokenPayload | nu
  */
 export async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string } | null> {
   try {
-    const { data, error } = await supabaseAdmin.auth.refreshSession({
+    const { data, error } = await getSupabaseAdmin().auth.refreshSession({
       refresh_token: refreshToken
     })
     

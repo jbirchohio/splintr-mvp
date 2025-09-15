@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { withValidation } from '@/lib/validation-middleware'
 import { withSecurity } from '@/lib/security-middleware'
 import { RATE_LIMITS } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 export const POST = withSecurity(
   withValidation({
@@ -12,7 +13,7 @@ export const POST = withSecurity(
     const { error } = await supabase.auth.signOut()
     
     if (error) {
-      console.error('Sign out error:', error.message)
+      logger.error({ err: error }, 'Sign out error')
       return NextResponse.json(
         { error: 'Failed to sign out' },
         { status: 500 }
@@ -21,7 +22,7 @@ export const POST = withSecurity(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Sign out error:', error)
+    logger.error({ err: error }, 'Sign out error')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
