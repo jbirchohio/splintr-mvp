@@ -10,6 +10,8 @@ export type RecommendationTrainingRow = {
   candidateSource: string | null
   servedModelVersion: string | null
   servedScore: number | null
+  featureSchemaVersion: string | null
+  features: Record<string, number>
   watchRatio: number
   watchMs: number
   fastSkip: number
@@ -44,7 +46,7 @@ export class TrainingDataService {
 
     const { data: exposures, error } = await supabase
       .from('feed_exposures')
-      .select('id, user_id, session_id, story_id, position, created_at, candidate_source, model_version, served_score')
+      .select('id, user_id, session_id, story_id, position, created_at, candidate_source, model_version, served_score, metadata')
       .gte('created_at', since)
       .lte('created_at', until)
       .order('created_at', { ascending: true })
@@ -117,8 +119,6 @@ export class TrainingDataService {
         if (event.type === 'report') reported = 1
       }
 
-      // Initial utility target. This is an export label, not the production ranker formula.
-      // It can later be replaced by multi-task training without changing exposure logging.
       const targetUtility =
         Math.min(1, watchRatio) * 1.5 +
         selectedChoice * 1.0 +
@@ -133,6 +133,11 @@ export class TrainingDataService {
         notInterested * 3.0 -
         reported * 5.0
 
+      const trace = exposure.metadata || {}
+      const features = Object.fromEntries(
+        Object.entries(trace.features || {}).map(([key, value]) => [key, Number(value) || 0])
+      )
+
       return {
         exposureId: exposure.id,
         userId: exposure.user_id || null,
@@ -143,6 +148,8 @@ export class TrainingDataService {
         candidateSource: exposure.candidate_source || null,
         servedModelVersion: exposure.model_version || null,
         servedScore: exposure.served_score == null ? null : Number(exposure.served_score),
+        featureSchemaVersion: trace.featureSchemaVersion || null,
+        features,
         watchRatio,
         watchMs,
         fastSkip,
