@@ -57,6 +57,7 @@ export type RecommendationTrace = {
   score: number
   featureSchemaVersion?: string
   features?: Record<string, number>
+  experimentArm?: 'control' | 'learned'
 }
 
 export const HEURISTIC_MODEL_VERSION = 'heuristic-phase-c-v1'
