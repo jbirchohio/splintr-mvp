@@ -26,6 +26,39 @@ export class ModelRegistryService {
       return null
     }
   }
+
+  static async saveModel(params: {
+    model: LearnedRankerModel
+    trainingRows: number
+    metrics?: Record<string, unknown>
+    activate?: boolean
+  }): Promise<void> {
+    const { model, trainingRows, metrics = {}, activate = false } = params
+    const supabase = createServerClient() as any
+    const { error } = await supabase.from('recommendation_models').upsert(
+      {
+        version: model.version,
+        feature_schema_version: model.featureSchemaVersion,
+        intercept: model.intercept,
+        coefficients: model.coefficients,
+        means: model.means || {},
+        scales: model.scales || {},
+        training_rows: trainingRows,
+        metrics,
+        is_active: false,
+      },
+      { onConflict: 'version' }
+    )
+    if (error) throw error
+
+    if (activate) {
+      const { error: activateError } = await supabase.rpc(
+        'activate_recommendation_model',
+        { target_version: model.version }
+      )
+      if (activateError) throw activateError
+    }
+  }
 }
 
 export default ModelRegistryService
