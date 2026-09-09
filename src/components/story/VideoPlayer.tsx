@@ -2,11 +2,19 @@ import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { VideoPlayerState, TransitionEffect } from '@/types/playback.types'
 import { Choice } from '@/types/story.types'
 
+export type VideoPlaybackMetric = {
+  watchMs: number
+  durationMs: number
+  watchRatio: number
+  completed: boolean
+}
+
 interface VideoPlayerProps {
   videoUrl: string
   choices: Choice[]
   onVideoEnd: () => void
   onChoiceSelect: (choice: Choice) => void
+  onPlaybackMetric?: (metric: VideoPlaybackMetric) => void
   autoPlay?: boolean
   muted?: boolean
   showChoices?: boolean
@@ -24,6 +32,7 @@ export function VideoPlayer({
   choices,
   onVideoEnd,
   onChoiceSelect,
+  onPlaybackMetric,
   autoPlay = true,
   muted,
   showChoices = true,
@@ -47,6 +56,21 @@ export function VideoPlayer({
   const [showChoiceOverlay, setShowChoiceOverlay] = useState(false)
   const [timeRemaining, setTimeRemaining] = useState<number>(0)
   const [isPiP, setIsPiP] = useState<boolean>(false)
+
+  const emitPlaybackMetric = useCallback((completed = false) => {
+    const video = videoRef.current
+    if (!video || !onPlaybackMetric) return
+    const duration = Number.isFinite(video.duration) ? Math.max(0, video.duration) : 0
+    const currentTime = Number.isFinite(video.currentTime) ? Math.max(0, video.currentTime) : 0
+    const watchRatio = duration > 0 ? Math.min(1, currentTime / duration) : 0
+    onPlaybackMetric({
+      watchMs: Math.round(currentTime * 1000),
+      durationMs: Math.round(duration * 1000),
+      watchRatio,
+      completed
+    })
+  }, [onPlaybackMetric])
+
   const cacheOffline = useCallback(async () => {
     try {
       const reg = await navigator.serviceWorker.ready
@@ -54,7 +78,6 @@ export function VideoPlayer({
     } catch {}
   }, [videoUrl])
 
-  // Video event handlers
   const handleLoadedMetadata = useCallback(() => {
     if (videoRef.current) {
       setPlayerState(prev => ({
@@ -62,8 +85,9 @@ export function VideoPlayer({
         duration: videoRef.current!.duration,
         isLoaded: true
       }))
+      emitPlaybackMetric(false)
     }
-  }, [])
+  }, [emitPlaybackMetric])
 
   const handleTimeUpdate = useCallback(() => {
     if (videoRef.current) {
@@ -71,19 +95,15 @@ export function VideoPlayer({
       const duration = videoRef.current.duration
       const remaining = duration - currentTime
 
-      setPlayerState(prev => ({
-        ...prev,
-        currentTime
-      }))
-
+      setPlayerState(prev => ({ ...prev, currentTime }))
       setTimeRemaining(remaining)
+      emitPlaybackMetric(false)
 
-      // Show choices in the last 3 seconds if there are choices
       if (choices.length > 0 && remaining <= 3 && remaining > 0) {
         setShowChoiceOverlay(true)
       }
     }
-  }, [choices.length])
+  }, [choices.length, emitPlaybackMetric])
 
   const handlePlay = useCallback(() => {
     setPlayerState(prev => ({ ...prev, isPlaying: true }))
@@ -91,21 +111,20 @@ export function VideoPlayer({
 
   const handlePause = useCallback(() => {
     setPlayerState(prev => ({ ...prev, isPlaying: false }))
-  }, [])
+    emitPlaybackMetric(false)
+  }, [emitPlaybackMetric])
 
   const handleEnded = useCallback(() => {
     setPlayerState(prev => ({ ...prev, isPlaying: false }))
-    
-    // If no choices, call onVideoEnd immediately
+    emitPlaybackMetric(true)
+
     if (choices.length === 0) {
       onVideoEnd()
     } else {
-      // Show choices overlay if not already shown
       setShowChoiceOverlay(true)
     }
-  }, [choices.length, onVideoEnd])
+  }, [choices.length, emitPlaybackMetric, onVideoEnd])
 
-  // Picture-in-Picture support
   const enterPiP = useCallback(async () => {
     try {
       const el = videoRef.current as any
@@ -120,7 +139,6 @@ export function VideoPlayer({
     } catch {}
   }, [])
 
-  // Respect Save-Data / low bandwidth
   useEffect(() => {
     try {
       const anyNav: any = navigator as any
@@ -136,11 +154,11 @@ export function VideoPlayer({
   useEffect(() => {
     const onEnter = () => setIsPiP(true)
     const onLeave = () => setIsPiP(false)
-    (document as any).addEventListener?.('enterpictureinpicture', onEnter)
-    (document as any).addEventListener?.('leavepictureinpicture', onLeave)
+    ;(document as any).addEventListener?.('enterpictureinpicture', onEnter)
+    ;(document as any).addEventListener?.('leavepictureinpicture', onLeave)
     return () => {
-      (document as any).removeEventListener?.('enterpictureinpicture', onEnter)
-      (document as any).removeEventListener?.('leavepictureinpicture', onLeave)
+      ;(document as any).removeEventListener?.('enterpictureinpicture', onEnter)
+      ;(document as any).removeEventListener?.('leavepictureinpicture', onLeave)
     }
   }, [])
 
@@ -152,45 +170,35 @@ export function VideoPlayer({
     }))
   }, [])
 
-  // Choice selection handler
   const handleChoiceClick = useCallback((choice: Choice) => {
     setShowChoiceOverlay(false)
-    // Haptic feedback on mobile
     try { navigator.vibrate?.(30) } catch {}
+    emitPlaybackMetric(false)
     onChoiceSelect(choice)
-  }, [onChoiceSelect])
+  }, [emitPlaybackMetric, onChoiceSelect])
 
-  // Video control methods
   const play = useCallback(() => {
     videoRef.current?.play()
   }, [])
 
-  const pause = useCallback(() => {
-    videoRef.current?.pause()
-  }, [])
-
-  // Auto-play when video loads
   useEffect(() => {
     if (playerState.isLoaded && autoPlay && videoRef.current) {
       videoRef.current.play().catch(error => {
         console.warn('Auto-play failed:', error)
-        // Auto-play might be blocked by browser policy
       })
     }
   }, [playerState.isLoaded, autoPlay])
 
-  // React to external pause/resume
   useEffect(() => {
-    const v = videoRef.current
-    if (!v || !playerState.isLoaded) return
+    const video = videoRef.current
+    if (!video || !playerState.isLoaded) return
     if (externalPaused) {
-      v.pause()
+      video.pause()
     } else if (autoPlay) {
-      v.play().catch(() => {})
+      video.play().catch(() => {})
     }
   }, [externalPaused, autoPlay, playerState.isLoaded])
 
-  // Reset overlay when video URL changes
   useEffect(() => {
     setShowChoiceOverlay(false)
     setPlayerState(prev => ({
@@ -203,13 +211,10 @@ export function VideoPlayer({
 
   return (
     <div className={`relative w-full h-full bg-black overflow-hidden ${className}`}>
-      {/* Video Element */}
       <video
         ref={videoRef}
         src={videoUrl}
-        className={`w-full h-full object-cover transition-all duration-500 ${
-          immersiveMode ? 'scale-105' : 'scale-100'
-        }`}
+        className={`w-full h-full object-cover transition-all duration-500 ${immersiveMode ? 'scale-105' : 'scale-100'}`}
         onLoadedMetadata={handleLoadedMetadata}
         onTimeUpdate={handleTimeUpdate}
         onPlay={handlePlay}
@@ -218,20 +223,15 @@ export function VideoPlayer({
         onError={handleError}
         playsInline
         preload={saveData ? 'none' : 'metadata'}
-        muted={muted ?? autoPlay} // Prefer explicit muted prop; fallback to autoplay policy
+        muted={muted ?? autoPlay}
       />
 
-      {/* AR Face Overlay (if enabled and supported) */}
-      {enableAR && (
-        <ARWrapper videoRef={videoRef} />
-      )}
+      {enableAR && <ARWrapper videoRef={videoRef} />}
 
-      {/* Watermark overlay */}
       {watermark && (
         <div className="absolute bottom-2 right-2 text-white/80 text-xs bg-black/40 px-2 py-1 rounded">Splintr</div>
       )}
 
-      {/* Top-right utilities */}
       <div className="absolute top-2 right-2 z-10 flex gap-2">
         <button
           onClick={enterPiP}
@@ -249,19 +249,15 @@ export function VideoPlayer({
         </button>
       </div>
 
-      {/* Video Progress Bar */}
       {showProgressBar && playerState.isLoaded && (
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-black bg-opacity-30">
-          <div 
+          <div
             className="h-full bg-white transition-all duration-100 ease-linear"
-            style={{ 
-              width: `${(playerState.currentTime / playerState.duration) * 100}%` 
-            }}
+            style={{ width: `${playerState.duration > 0 ? (playerState.currentTime / playerState.duration) * 100 : 0}%` }}
           />
         </div>
       )}
 
-      {/* Immersive Gradient Overlays */}
       {immersiveMode && (
         <>
           <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-black/40 to-transparent pointer-events-none" />
@@ -269,7 +265,6 @@ export function VideoPlayer({
         </>
       )}
 
-      {/* Loading State with Enhanced Animation */}
       {!playerState.isLoaded && !playerState.hasError && (
         <div className="absolute inset-0 flex items-center justify-center bg-black">
           <div className="text-center">
@@ -282,7 +277,6 @@ export function VideoPlayer({
         </div>
       )}
 
-      {/* Enhanced Error State */}
       {playerState.hasError && (
         <div className="absolute inset-0 flex items-center justify-center bg-black">
           <div className="text-white text-center max-w-sm mx-4">
@@ -291,7 +285,7 @@ export function VideoPlayer({
             <div className="text-sm opacity-75 mb-6">
               {playerState.errorMessage || 'This video failed to load. Please try again.'}
             </div>
-            <button 
+            <button
               onClick={() => window.location.reload()}
               className="px-6 py-3 bg-white text-black rounded-full font-medium hover:bg-gray-200 transition-colors"
             >
@@ -301,7 +295,6 @@ export function VideoPlayer({
         </div>
       )}
 
-      {/* Enhanced Choice Overlay */}
       {showChoiceOverlay && showChoices && choices.length > 0 && (
         <ChoiceOverlay
           choices={choices}
@@ -312,9 +305,8 @@ export function VideoPlayer({
         />
       )}
 
-      {/* Tap to Play Indicator (for when autoplay fails) */}
       {playerState.isLoaded && !playerState.isPlaying && !showChoiceOverlay && (
-        <div 
+        <div
           className="absolute inset-0 flex items-center justify-center bg-black/30 cursor-pointer"
           onClick={play}
         >
@@ -326,7 +318,6 @@ export function VideoPlayer({
         </div>
       )}
 
-      {/* Video Controls (development only) */}
       {process.env.NODE_ENV === 'development' && (
         <div className="absolute bottom-8 left-4 text-white text-xs bg-black/75 p-3 rounded-lg backdrop-blur-sm">
           <div>Time: {playerState.currentTime.toFixed(1)}s / {playerState.duration.toFixed(1)}s</div>
@@ -339,7 +330,6 @@ export function VideoPlayer({
   )
 }
 
-// Enhanced Choice Overlay Component
 interface ChoiceOverlayProps {
   choices: Choice[]
   onChoiceSelect: (choice: Choice) => void
@@ -348,19 +338,17 @@ interface ChoiceOverlayProps {
   immersiveMode?: boolean
 }
 
-function ChoiceOverlay({ 
-  choices, 
-  onChoiceSelect, 
+function ChoiceOverlay({
+  choices,
+  onChoiceSelect,
   timeRemaining,
   transitionEffect,
   immersiveMode = true
 }: ChoiceOverlayProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null)
-  const [speechEnabled, setSpeechEnabled] = useState<boolean>(false)
   const recognitionRef = React.useRef<any>(null)
 
-  // Animate in
   useEffect(() => {
     const timer = setTimeout(() => setIsVisible(true), 100)
     return () => clearTimeout(timer)
@@ -368,12 +356,10 @@ function ChoiceOverlay({
 
   const handleChoiceClick = (choice: Choice) => {
     setSelectedChoice(choice.id)
-    // Add slight delay for selection animation
     setTimeout(() => onChoiceSelect(choice), 200)
   }
 
-  // Voice command handling using Web Speech API (if available)
-  React.useEffect(() => {
+  useEffect(() => {
     const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SR) return
     recognitionRef.current = new SR()
@@ -384,37 +370,33 @@ function ChoiceOverlay({
       const last = event.results[event.results.length - 1]
       if (!last || !last.isFinal) return
       const transcript = String(last[0].transcript || '').toLowerCase()
-      // Map commands: "one", "two", "left", "right", "select <n>"
       const map = new Map<number, Choice>()
-      choices.forEach((c, i) => map.set(i + 1, c))
-      const trySelect = (n: number) => { const c = map.get(n); if (c) handleChoiceClick(c) }
+      choices.forEach((choice, index) => map.set(index + 1, choice))
+      const trySelect = (n: number) => {
+        const choice = map.get(n)
+        if (choice) handleChoiceClick(choice)
+      }
       if (/\b(one|1)\b/.test(transcript)) return trySelect(1)
       if (/\b(two|2)\b/.test(transcript)) return trySelect(2)
       if (/\bthree|3\b/.test(transcript)) return trySelect(3)
       if (/left/.test(transcript)) return trySelect(1)
       if (/right/.test(transcript)) return trySelect(2)
-      const m = transcript.match(/select\s+(\d+)/)
-      if (m) return trySelect(parseInt(m[1], 10))
+      const match = transcript.match(/select\s+(\d+)/)
+      if (match) return trySelect(parseInt(match[1], 10))
     }
     return () => { try { recognitionRef.current?.stop?.() } catch {} }
   }, [choices])
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!recognitionRef.current) return
     try {
-      if (isVisible) {
-        recognitionRef.current.start()
-        setSpeechEnabled(true)
-      } else {
-        recognitionRef.current.stop()
-        setSpeechEnabled(false)
-      }
+      if (isVisible) recognitionRef.current.start()
+      else recognitionRef.current.stop()
     } catch {}
   }, [isVisible])
 
   const getTransitionClasses = () => {
     const duration = `duration-${transitionEffect.duration || 300}`
-    
     if (!isVisible) {
       switch (transitionEffect.type) {
         case 'fade':
@@ -425,56 +407,40 @@ function ChoiceOverlay({
           return `transition-all ${duration} opacity-0 scale-95`
       }
     }
-    
     return `transition-all ${duration} opacity-100 transform translate-y-0 scale-100`
   }
 
-  const getChoiceButtonClasses = (choice: Choice, index: number) => {
+  const getChoiceButtonClasses = (choice: Choice) => {
     const baseClasses = `
       w-full p-5 font-semibold rounded-2xl transition-all duration-300
       transform active:scale-95 shadow-2xl
       backdrop-blur-sm border-2
     `
-    
     const isSelected = selectedChoice === choice.id
-    
+
     if (immersiveMode) {
       if (isSelected) {
-        return `${baseClasses} 
-          bg-blue-500 border-blue-400 text-white scale-105
-          shadow-blue-500/50`
+        return `${baseClasses} bg-blue-500 border-blue-400 text-white scale-105 shadow-blue-500/50`
       }
-      return `${baseClasses}
-        bg-white/95 hover:bg-white border-white/50 hover:border-white
-        text-gray-900 hover:scale-105 hover:shadow-white/20`
+      return `${baseClasses} bg-white/95 hover:bg-white border-white/50 hover:border-white text-gray-900 hover:scale-105 hover:shadow-white/20`
     }
-    
-    // Standard mode
-    if (isSelected) {
-      return `${baseClasses} bg-blue-600 border-blue-500 text-white scale-105`
-    }
+
+    if (isSelected) return `${baseClasses} bg-blue-600 border-blue-500 text-white scale-105`
     return `${baseClasses} bg-white hover:bg-gray-50 border-gray-200 text-gray-900 hover:scale-102`
   }
 
   return (
-    <div className={`absolute inset-0 flex items-end justify-center ${
-      immersiveMode ? 'bg-gradient-to-t from-black/80 via-black/40 to-transparent' : 'bg-black/50'
-    }`}>
+    <div className={`absolute inset-0 flex items-end justify-center ${immersiveMode ? 'bg-gradient-to-t from-black/80 via-black/40 to-transparent' : 'bg-black/50'}`}>
       <div className={`w-full max-w-lg mx-4 mb-8 ${getTransitionClasses()}`}>
-        {/* Enhanced Timer indicator */}
         {timeRemaining > 0 && (
           <div className="text-center mb-6">
-            <div className={`text-lg font-medium mb-3 ${
-              immersiveMode ? 'text-white drop-shadow-lg' : 'text-white'
-            }`}>
+            <div className={`text-lg font-medium mb-3 ${immersiveMode ? 'text-white drop-shadow-lg' : 'text-white'}`}>
               Choose your path
             </div>
             <div className="relative">
               <div className="w-full bg-white/20 rounded-full h-2 backdrop-blur-sm">
-                <div 
-                  className={`h-2 rounded-full transition-all duration-1000 ${
-                    immersiveMode ? 'bg-gradient-to-r from-blue-400 to-purple-400' : 'bg-white'
-                  }`}
+                <div
+                  className={`h-2 rounded-full transition-all duration-1000 ${immersiveMode ? 'bg-gradient-to-r from-blue-400 to-purple-400' : 'bg-white'}`}
                   style={{ width: `${Math.max(0, (timeRemaining / 3) * 100)}%` }}
                 />
               </div>
@@ -485,13 +451,12 @@ function ChoiceOverlay({
           </div>
         )}
 
-        {/* Enhanced Choice Buttons */}
         <div className="space-y-4">
           {choices.map((choice, index) => (
             <button
               key={choice.id}
               onClick={() => handleChoiceClick(choice)}
-              className={getChoiceButtonClasses(choice, index)}
+              className={getChoiceButtonClasses(choice)}
               style={{
                 animationDelay: `${index * 150}ms`,
                 animation: isVisible ? `slideInUp 0.6s ease-out ${index * 150}ms both` : 'none'
@@ -511,41 +476,24 @@ function ChoiceOverlay({
             </button>
           ))}
         </div>
-
-        {/* Enhanced completion indicator */}
-        {choices.length === 0 && (
-          <div className="text-center text-white">
-            <div className="text-2xl mb-3 animate-bounce">🎉</div>
-            <div className="text-xl font-semibold mb-2">Story Complete!</div>
-            <div className="text-sm opacity-75">Tap anywhere to continue</div>
-          </div>
-        )}
       </div>
 
-      {/* Add CSS keyframes for animations */}
       <style jsx>{`
         @keyframes slideInUp {
-          from {
-            opacity: 0;
-            transform: translateY(30px) scale(0.95);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
+          from { opacity: 0; transform: translateY(30px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
     </div>
   )
 }
 
-// Lazy AR overlay to avoid SSR issues and optional dependency
 function ARWrapper({ videoRef }: { videoRef: React.RefObject<HTMLVideoElement> }) {
   const [Comp, setComp] = React.useState<React.FC<{ videoRef: React.RefObject<HTMLVideoElement>; enabled?: boolean }> | null>(null)
   React.useEffect(() => {
     let mounted = true
     import('@/components/ar/FaceOverlay')
-      .then(m => { if (mounted) setComp(() => m.FaceOverlay as any) })
+      .then(module => { if (mounted) setComp(() => module.FaceOverlay as any) })
       .catch(() => {})
     return () => { mounted = false }
   }, [])
