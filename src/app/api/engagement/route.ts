@@ -1,11 +1,31 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { withSecurity } from '@/lib/security-middleware'
 import { withValidation } from '@/lib/validation-middleware'
 import { analyticsSchemas } from '@/lib/validation-schemas'
 import { createServerClient } from '@/lib/supabase'
 
+const recommendationEngagementSchema = analyticsSchemas.engagement.extend({
+  action: z.enum([
+    'view',
+    'like',
+    'share',
+    'comment',
+    'complete',
+    'dwell',
+    'skip',
+    'choice',
+    'continuation',
+    'replay',
+    'path_complete',
+    'alternate_ending',
+    'not_interested',
+    'report'
+  ])
+})
+
 export const POST = withSecurity(
-  withValidation({ bodySchema: analyticsSchemas.engagement, requireAuth: false })(async (req, { user }) => {
+  withValidation({ bodySchema: recommendationEngagementSchema, requireAuth: false })(async (req, { user }) => {
     try {
       const supabase = createServerClient()
       const body = await req.json()
@@ -18,7 +38,14 @@ export const POST = withSecurity(
         comment: 'comment',
         complete: 'complete',
         dwell: 'time_spent',
-        skip: 'skip'
+        skip: 'skip',
+        choice: 'choice',
+        continuation: 'continuation',
+        replay: 'replay',
+        path_complete: 'path_complete',
+        alternate_ending: 'alternate_ending',
+        not_interested: 'not_interested',
+        report: 'report'
       }
       const type = typeMap[body.action]
       if (!type) return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
