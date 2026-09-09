@@ -2,6 +2,8 @@ import { timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { EmbeddingService } from '@/recommendation/embedding.service'
 
+export const runtime = 'nodejs'
+
 function authorized(req: NextRequest): boolean {
   const expected = process.env.ADMIN_API_KEY
   const provided = req.headers.get('x-admin-api-key')
