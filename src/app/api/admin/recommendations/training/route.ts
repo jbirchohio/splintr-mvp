@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { ModelRegistryService } from '@/recommendation/model-registry.service'
 import { ModelTrainerService } from '@/recommendation/model-trainer.service'
+import { OfflineEvaluationService } from '@/recommendation/offline-evaluation.service'
 import {
   RECOMMENDATION_FEATURE_SCHEMA_VERSION,
 } from '@/recommendation/model-feature.service'
@@ -60,10 +61,13 @@ export async function POST(req: NextRequest) {
       limit?: number
       version?: string
       activate?: boolean
+      forceActivate?: boolean
       positiveThreshold?: number
+      holdoutFraction?: number
     }
 
     const since = body.since || new Date(Date.now() - 30 * 86400000).toISOString()
+    const positiveThreshold = body.positiveThreshold ?? 1.5
     const rows = await TrainingDataService.build({
       since,
       until: body.until,
@@ -79,17 +83,51 @@ export async function POST(req: NextRequest) {
     const model = ModelTrainerService.train({
       rows: trainable.map(row => ({ features: row.features, targetUtility: row.targetUtility })),
       version,
-      positiveThreshold: body.positiveThreshold,
+      positiveThreshold,
     })
 
-    const positiveThreshold = body.positiveThreshold ?? 1.5
+    let offline: ReturnType<typeof OfflineEvaluationService.evaluate> | null = null
+    let offlineError: string | null = null
+    try {
+      offline = OfflineEvaluationService.evaluate({
+        rows,
+        positiveThreshold,
+        holdoutFraction: body.holdoutFraction,
+        version: `${version}-holdout`,
+      })
+    } catch (error: any) {
+      offlineError = error?.message || 'Offline evaluation unavailable'
+    }
+
     const positives = trainable.filter(row => row.targetUtility >= positiveThreshold).length
+    const activationGatePassed = Boolean(
+      offline &&
+      (offline.aucLift == null || offline.aucLift >= 0) &&
+      (offline.utilityLift == null || offline.utilityLift >= 0)
+    )
+
+    if (body.activate === true && !activationGatePassed && body.forceActivate !== true) {
+      return NextResponse.json(
+        {
+          error: 'Activation blocked: learned model did not pass holdout gate',
+          version,
+          offline,
+          offlineError,
+          forceActivateAvailable: true,
+        },
+        { status: 409 }
+      )
+    }
+
     const metrics = {
       featureSchemaVersion: RECOMMENDATION_FEATURE_SCHEMA_VERSION,
       totalExportRows: rows.length,
       trainableRows: trainable.length,
       positiveRate: trainable.length ? positives / trainable.length : 0,
       positiveThreshold,
+      offline,
+      offlineError,
+      activationGatePassed,
     }
 
     await ModelRegistryService.saveModel({
@@ -103,6 +141,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       version,
       activated: body.activate === true,
+      forcedActivation: body.activate === true && body.forceActivate === true && !activationGatePassed,
       trainingRows: trainable.length,
       metrics,
       coefficients: model.coefficients,
