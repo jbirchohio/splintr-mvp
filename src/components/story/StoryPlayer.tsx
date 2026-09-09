@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { VideoPlayer } from './VideoPlayer'
 import { StoryNavigationControls } from './StoryNavigationControls'
 import { StoryInfoOverlay } from './StoryInfoOverlay'
@@ -10,17 +10,14 @@ import { StoryPlayerProps } from '@/types/playback.types'
 import { Choice } from '@/types/story.types'
 import { VideoRecord } from '@/types/video.types'
 import { videoDatabaseService } from '@/services/video.database.service'
+import { RecommendationTelemetryService } from '@/services/recommendation-telemetry.service'
 import { supabase } from '@/lib/supabase'
 
-// Get video by ID using the actual service
 const getVideoById = async (videoId: string): Promise<VideoRecord> => {
   try {
     const video = await videoDatabaseService.getVideoById(videoId)
-    if (!video) {
-      throw new Error('Video not found')
-    }
-    
-    // Ensure we have streaming URLs and required fields
+    if (!video) throw new Error('Video not found')
+
     return {
       ...video,
       originalFilename: video.originalFilename || 'unknown',
@@ -34,46 +31,46 @@ const getVideoById = async (videoId: string): Promise<VideoRecord> => {
   }
 }
 
-export function StoryPlayer({ 
-  storyId, 
-  onComplete, 
-  onError, 
+export function StoryPlayer({
+  storyId,
+  onComplete,
+  onError,
   autoStart = true,
   muted,
   paused,
   onVideoLoaded,
   watermark
 }: StoryPlayerProps) {
-  // Get current user for exploration tracking
   const [userId, setUserId] = useState<string | undefined>()
-  
-  const { 
-    state, 
-    controls, 
-    navigation, 
-    getAnalytics, 
+
+  const {
+    state,
+    controls,
+    navigation,
+    getAnalytics,
     explorationData,
     newAchievements,
     getSuggestedChoice,
     clearAchievement,
-    isLoading, 
-    error 
+    isLoading,
+    error
   } = useStoryPlayback(storyId, userId)
-  
+
   const [currentVideo, setCurrentVideo] = useState<VideoRecord | null>(null)
   const [videoLoading, setVideoLoading] = useState(false)
   const [showRestartPrompt, setShowRestartPrompt] = useState(false)
   const [showInfoOverlay, setShowInfoOverlay] = useState(false)
   const [showPathExplorer, setShowPathExplorer] = useState(false)
-  
-  // Achievement notifications
-  const { 
-    currentAchievement, 
-    showAchievement, 
-    hideCurrentAchievement 
+  const nodeStartedAtRef = useRef<number>(Date.now())
+  const lastCompletedSessionRef = useRef<string | null>(null)
+  const replayCountRef = useRef(0)
+
+  const {
+    currentAchievement,
+    showAchievement,
+    hideCurrentAchievement
   } = useAchievementNotifications()
 
-  // Get current user on mount
   useEffect(() => {
     const getCurrentUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -82,7 +79,6 @@ export function StoryPlayer({
     getCurrentUser()
   }, [])
 
-  // Show achievement notifications
   useEffect(() => {
     if (newAchievements.length > 0) {
       newAchievements.forEach(achievement => {
@@ -92,7 +88,10 @@ export function StoryPlayer({
     }
   }, [newAchievements, showAchievement, clearAchievement])
 
-  // Load video when current node changes
+  useEffect(() => {
+    nodeStartedAtRef.current = Date.now()
+  }, [state.currentNodeId])
+
   useEffect(() => {
     if (!state.currentNode?.videoId) return
 
@@ -113,54 +112,154 @@ export function StoryPlayer({
     }
 
     loadVideo()
-  }, [state.currentNode?.videoId, onError])
+  }, [state.currentNode?.videoId, onError, onVideoLoaded])
 
-  // Handle story completion
   useEffect(() => {
-    if (state.isComplete) {
-      const analytics = getAnalytics()
-      onComplete?.(analytics)
-      setShowRestartPrompt(true)
-    }
-  }, [state.isComplete, getAnalytics, onComplete])
+    if (!state.isComplete || !state.sessionId) return
+    if (lastCompletedSessionRef.current === state.sessionId) return
+    lastCompletedSessionRef.current = state.sessionId
 
-  // Handle choice selection
+    const analytics = getAnalytics()
+    RecommendationTelemetryService.track({
+      storyId,
+      action: 'path_complete',
+      sessionId: state.sessionId,
+      metadata: {
+        pathDepth: analytics.pathTaken.length,
+        totalDurationMs: analytics.totalDuration,
+        replayCount: replayCountRef.current
+      }
+    })
+
+    RecommendationTelemetryService.track({
+      storyId,
+      action: 'complete',
+      sessionId: state.sessionId,
+      metadata: {
+        pathDepth: analytics.pathTaken.length,
+        totalDurationMs: analytics.totalDuration
+      }
+    })
+
+    if (replayCountRef.current > 0) {
+      RecommendationTelemetryService.track({
+        storyId,
+        action: 'alternate_ending',
+        sessionId: state.sessionId,
+        metadata: {
+          pathDepth: analytics.pathTaken.length,
+          discoveredEndings: explorationData?.discoveredEndings.length || 0,
+          alternateEndings: explorationData?.alternateEndings.length || 0
+        }
+      })
+    }
+
+    onComplete?.(analytics)
+    setShowRestartPrompt(true)
+  }, [state.isComplete, state.sessionId, storyId, getAnalytics, onComplete, explorationData])
+
   const handleChoiceSelect = useCallback((choice: Choice) => {
-    try {
-      // Log choice selection (best-effort)
-      fetch('/api/engagement', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contentType: 'story', contentId: storyId, action: 'choice', metadata: { choiceId: choice.id } })
-      }).catch(() => {})
-    } catch {}
-    controls.selectChoice(choice.id)
-  }, [controls, storyId])
+    const currentNode = state.currentNode
+    const choiceLatencyMs = Math.max(0, Date.now() - nodeStartedAtRef.current)
+    const nextNodeId = choice.nextNodeId || null
 
-  // Handle video end (for nodes without choices)
+    RecommendationTelemetryService.track({
+      storyId,
+      action: 'choice',
+      sessionId: state.sessionId,
+      metadata: {
+        nodeId: state.currentNodeId,
+        choiceId: choice.id,
+        nextNodeId,
+        choiceLatencyMs,
+        pathDepth: navigation.currentPath.length,
+        completedNode: true
+      }
+    })
+
+    RecommendationTelemetryService.track({
+      storyId,
+      action: 'complete',
+      sessionId: state.sessionId,
+      metadata: {
+        nodeId: state.currentNodeId,
+        pathDepth: navigation.currentPath.length,
+        completedNode: true,
+        terminalNode: Boolean(currentNode?.isEndNode)
+      }
+    })
+
+    if (nextNodeId) {
+      RecommendationTelemetryService.track({
+        storyId,
+        action: 'continuation',
+        sessionId: state.sessionId,
+        metadata: {
+          nodeId: state.currentNodeId,
+          choiceId: choice.id,
+          nextNodeId,
+          pathDepth: navigation.currentPath.length + 1
+        }
+      })
+    }
+
+    controls.selectChoice(choice.id)
+  }, [controls, navigation.currentPath.length, state.currentNode, state.currentNodeId, state.sessionId, storyId])
+
   const handleVideoEnd = useCallback(() => {
+    RecommendationTelemetryService.track({
+      storyId,
+      action: 'complete',
+      sessionId: state.sessionId,
+      metadata: {
+        nodeId: state.currentNodeId,
+        pathDepth: navigation.currentPath.length,
+        completedNode: true,
+        terminalNode: Boolean(state.currentNode?.isEndNode)
+      }
+    })
+
     if (state.currentNode?.isEndNode) {
-      // End story if this is an end node
       const analytics = getAnalytics()
       onComplete?.(analytics)
       setShowRestartPrompt(true)
     }
-  }, [state.currentNode?.isEndNode, getAnalytics, onComplete])
+  }, [state.currentNode, state.currentNodeId, state.sessionId, navigation.currentPath.length, storyId, getAnalytics, onComplete])
 
-  // Handle restart
   const handleRestart = useCallback(() => {
+    replayCountRef.current += 1
+    RecommendationTelemetryService.track({
+      storyId,
+      action: 'replay',
+      sessionId: state.sessionId,
+      metadata: {
+        replayMode: 'restart',
+        previousPathDepth: navigation.currentPath.length,
+        replayCount: replayCountRef.current
+      }
+    })
     setShowRestartPrompt(false)
     controls.restart()
-  }, [controls])
+  }, [controls, navigation.currentPath.length, state.sessionId, storyId])
 
-  // Handle path replay
   const handleReplayPath = useCallback((path: string[]) => {
+    replayCountRef.current += 1
+    RecommendationTelemetryService.track({
+      storyId,
+      action: 'replay',
+      sessionId: state.sessionId,
+      metadata: {
+        replayMode: 'path',
+        replayPath: path,
+        previousPath: navigation.currentPath,
+        replayCount: replayCountRef.current
+      }
+    })
     setShowRestartPrompt(false)
     setShowPathExplorer(false)
     controls.replayPath(path)
-  }, [controls])
+  }, [controls, navigation.currentPath, state.sessionId, storyId])
 
-  // Handle back navigation (if implemented)
   const handleGoBack = useCallback(() => {
     if (navigation.canGoBack && navigation.currentPath.length > 1) {
       const previousNodeId = navigation.currentPath[navigation.currentPath.length - 2]
@@ -168,13 +267,10 @@ export function StoryPlayer({
     }
   }, [navigation, controls])
 
-  // Handle choice suggestion
   const handleChoiceSuggestion = useCallback((choice: Choice) => {
-    // Highlight or auto-select the suggested choice
     controls.selectChoice(choice.id)
   }, [controls])
 
-  // Error handling
   if (error) {
     return (
       <div className="flex items-center justify-center h-full bg-black text-white">
@@ -182,7 +278,7 @@ export function StoryPlayer({
           <div className="text-xl mb-4">⚠️</div>
           <div className="text-lg mb-2">Failed to load story</div>
           <div className="text-sm opacity-75 mb-4">{typeof error === 'string' ? error : error instanceof Error ? error.message : 'Unknown error'}</div>
-          <button 
+          <button
             onClick={() => window.location.reload()}
             className="px-4 py-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors"
           >
@@ -193,7 +289,6 @@ export function StoryPlayer({
     )
   }
 
-  // Loading state
   if (isLoading || videoLoading || !currentVideo) {
     return (
       <div className="flex items-center justify-center h-full bg-black">
@@ -207,7 +302,6 @@ export function StoryPlayer({
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden">
-      {/* Main Video Player */}
       <VideoPlayer
         videoUrl={currentVideo.streamingUrl}
         choices={state.currentNode?.choices || []}
@@ -224,7 +318,6 @@ export function StoryPlayer({
         showProgressBar={true}
       />
 
-      {/* Enhanced Story Navigation */}
       {state.story && (
         <div className="absolute top-0 left-0 right-0 z-10 p-4">
           <StoryNavigationControls
@@ -237,7 +330,6 @@ export function StoryPlayer({
         </div>
       )}
 
-      {/* Replay Controls */}
       {state.story && explorationData && (
         <div className="absolute top-4 right-4 z-10">
           <ReplayControls
@@ -252,20 +344,14 @@ export function StoryPlayer({
         </div>
       )}
 
-      {/* Enhanced Restart Prompt Modal */}
       {showRestartPrompt && explorationData && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm z-50">
           <div className="bg-white rounded-2xl p-8 max-w-md mx-4 text-center shadow-2xl transform animate-pulse">
             <div className="text-4xl mb-6 animate-bounce">🎉</div>
             <h3 className="text-2xl font-bold mb-3 text-gray-900">Story Complete!</h3>
-            <p className="text-gray-600 mb-2 text-lg">
-              You've reached the end of this path.
-            </p>
-            <p className="text-gray-500 mb-8 text-sm">
-              Want to explore different choices and discover new endings?
-            </p>
-            
-            {/* Enhanced Story Stats */}
+            <p className="text-gray-600 mb-2 text-lg">You've reached the end of this path.</p>
+            <p className="text-gray-500 mb-8 text-sm">Want to explore different choices and discover new endings?</p>
+
             <div className="bg-gray-50 rounded-xl p-4 mb-6">
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
@@ -279,43 +365,34 @@ export function StoryPlayer({
                   <div className="text-xs text-gray-500 uppercase tracking-wide">Endings</div>
                 </div>
                 <div>
-                  <div className="text-xl font-bold text-purple-600">
-                    {Math.round(explorationData.completionPercentage)}%
-                  </div>
+                  <div className="text-xl font-bold text-purple-600">{Math.round(explorationData.completionPercentage)}%</div>
                   <div className="text-xs text-gray-500 uppercase tracking-wide">Complete</div>
                 </div>
               </div>
             </div>
 
-            {/* Exploration Status */}
             {explorationData.unexploredPaths.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6">
-                <p className="text-amber-800 text-sm">
-                  🗺️ {explorationData.unexploredPaths.length} more paths to discover!
-                </p>
+                <p className="text-amber-800 text-sm">{explorationData.unexploredPaths.length} more paths to discover.</p>
               </div>
             )}
 
             <div className="flex space-x-3">
               <button
                 onClick={handleRestart}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white 
-                         rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 
-                         transform hover:scale-105 transition-all duration-200 shadow-lg"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg"
               >
                 Explore Again
               </button>
               <button
                 onClick={() => setShowPathExplorer(true)}
-                className="flex-1 px-6 py-3 bg-green-500 text-white rounded-xl font-semibold 
-                         hover:bg-green-600 transform hover:scale-105 transition-all duration-200"
+                className="flex-1 px-6 py-3 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 transform hover:scale-105 transition-all duration-200"
               >
                 View Paths
               </button>
               <button
                 onClick={() => setShowRestartPrompt(false)}
-                className="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold 
-                         hover:bg-gray-200 transform hover:scale-105 transition-all duration-200"
+                className="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transform hover:scale-105 transition-all duration-200"
               >
                 Close
               </button>
@@ -324,7 +401,6 @@ export function StoryPlayer({
         </div>
       )}
 
-      {/* Path Explorer Panel */}
       {state.story && explorationData && (
         <PathHistoryPanel
           story={state.story}
@@ -338,7 +414,6 @@ export function StoryPlayer({
         />
       )}
 
-      {/* Story Info Overlay */}
       {state.story && (
         <StoryInfoOverlay
           story={state.story}
@@ -346,19 +421,13 @@ export function StoryPlayer({
           isVisible={showInfoOverlay}
           onClose={() => setShowInfoOverlay(false)}
           onShare={() => {
-            // TODO: Implement sharing functionality
             console.log('Share story:', state.story?.id)
           }}
         />
       )}
 
-      {/* Achievement Notifications */}
-      <AchievementNotification
-        achievement={currentAchievement}
-        onClose={hideCurrentAchievement}
-      />
+      <AchievementNotification achievement={currentAchievement} onClose={hideCurrentAchievement} />
 
-      {/* Debug Info (development only) */}
       {process.env.NODE_ENV === 'development' && (
         <div className="absolute bottom-4 left-4 bg-black/75 backdrop-blur-sm text-white text-xs p-3 rounded-lg max-w-xs border border-white/20">
           <div className="font-medium mb-2">Debug Info</div>
