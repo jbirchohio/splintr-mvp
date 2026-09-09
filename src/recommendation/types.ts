@@ -55,6 +55,8 @@ export type RecommendationTrace = {
   modelVersion: string
   candidateSources: CandidateSource[]
   score: number
+  featureSchemaVersion?: string
+  features?: Record<string, number>
 }
 
-export const HEURISTIC_MODEL_VERSION = 'heuristic-phase-b-v1'
+export const HEURISTIC_MODEL_VERSION = 'heuristic-phase-c-v1'
