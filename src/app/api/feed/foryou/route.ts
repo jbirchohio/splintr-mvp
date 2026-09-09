@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { withSecurity } from '@/lib/security-middleware'
 import { withValidation } from '@/lib/validation-middleware'
 import { validationSchemas } from '@/lib/validation-schemas'
+import { RankerExperimentService } from '@/recommendation/ranker-experiment.service'
 import { RecommendationService } from '@/services/recommendation.service'
 
 function assignVariant(userId?: string, explicit?: string) {
@@ -26,6 +27,10 @@ export const GET = withSecurity(
         const offset = (page - 1) * limit
         const sessionId = req.headers.get('x-session-id') || undefined
         const variant = assignVariant(user?.id, (query as any)?.variant as string | undefined)
+        const experimentArm = RankerExperimentService.assign({
+          userId: user?.id || null,
+          sessionId: sessionId || null,
+        })
 
         const result = await RecommendationService.getForYou({
           userId: user?.id || null,
@@ -33,6 +38,7 @@ export const GET = withSecurity(
           limit,
           offset,
           variant,
+          experimentArm,
         })
 
         await RecommendationService.logFeedExposures({
@@ -53,6 +59,7 @@ export const GET = withSecurity(
             totalPages: Math.ceil(result.total / limit),
           },
           assignedVariant: variant,
+          rankerExperimentArm: experimentArm,
         })
       } catch (error) {
         console.error('For You feed failed', error)

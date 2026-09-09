@@ -2,11 +2,15 @@ import { createServerClient } from '@/lib/supabase'
 import { RecsConfigService } from '@/services/recs-config.service'
 import { CandidateService } from '@/recommendation/candidate.service'
 import { HeuristicRanker } from '@/recommendation/heuristic-ranker'
+import { LearnedRanker } from '@/recommendation/learned-ranker'
+import { ModelFeatureService, RECOMMENDATION_FEATURE_SCHEMA_VERSION } from '@/recommendation/model-feature.service'
+import { ModelRegistryService } from '@/recommendation/model-registry.service'
 import { ReRankingService } from '@/recommendation/reranking.service'
 import { UserFeatureService } from '@/recommendation/user-feature.service'
 import {
   CreatorAuthority,
   HEURISTIC_MODEL_VERSION,
+  RankedCandidate,
   RecommendationTrace,
   StoryMetrics,
   StoryRow,
@@ -19,6 +23,7 @@ export class RecommendationService {
     limit: number
     offset: number
     variant?: string | null
+    experimentArm?: 'control' | 'learned'
   }): Promise<{
     items: StoryRow[]
     total: number
@@ -31,38 +36,63 @@ export class RecommendationService {
       limit,
       offset,
       variant = null,
+      experimentArm = 'control',
     } = params
 
-    const [signals, weights, exposureState] = await Promise.all([
+    const [signals, weights, exposureState, activeModel] = await Promise.all([
       UserFeatureService.build({ userId, sessionId }),
       RecsConfigService.getFypWeights(variant),
       ReRankingService.getExposureState({ userId, sessionId }),
+      experimentArm === 'learned' ? ModelRegistryService.getActiveModel() : Promise.resolve(null),
     ])
 
-    const { candidates, sourceCounts } = await CandidateService.generate({
-      userId,
-      signals,
-    })
-
+    const { candidates, sourceCounts } = await CandidateService.generate({ userId, signals })
     const storyIds = candidates.map(candidate => candidate.story.id)
-    const creatorIds = Array.from(
-      new Set(candidates.map(candidate => candidate.story.creator_id))
-    )
+    const creatorIds = Array.from(new Set(candidates.map(candidate => candidate.story.creator_id)))
 
     const [metricsByStory, authorityByCreator] = await Promise.all([
       this.fetchStoryMetrics(storyIds),
       this.fetchCreatorAuthority(creatorIds),
     ])
 
-    // Phase A keeps the heuristic ranker as a safe fallback behind a stable interface.
-    // A learned ranker can replace this call without changing feed API consumers.
-    const ranked = HeuristicRanker.rank({
+    const featuresByStory = ModelFeatureService.build({
       candidates,
       signals,
       weights,
       metricsByStory,
       authorityByCreator,
     })
+
+    let ranked: RankedCandidate[]
+    let modelVersion = HEURISTIC_MODEL_VERSION
+    let rankerMode: 'learned' | 'heuristic' = 'heuristic'
+    let fallbackReason: string | null = null
+
+    if (experimentArm === 'learned' && activeModel) {
+      try {
+        ranked = LearnedRanker.rank({ candidates, featuresByStory, model: activeModel })
+        modelVersion = activeModel.version
+        rankerMode = 'learned'
+      } catch (error: any) {
+        fallbackReason = error?.message || 'Learned ranker failed'
+        ranked = HeuristicRanker.rank({
+          candidates,
+          signals,
+          weights,
+          metricsByStory,
+          authorityByCreator,
+        })
+      }
+    } else {
+      if (experimentArm === 'learned' && !activeModel) fallbackReason = 'No active learned model'
+      ranked = HeuristicRanker.rank({
+        candidates,
+        signals,
+        weights,
+        metricsByStory,
+        authorityByCreator,
+      })
+    }
 
     const reranked = ReRankingService.apply({
       ranked,
@@ -76,9 +106,12 @@ export class RecommendationService {
 
     for (const item of page) {
       traces[item.story.id] = {
-        modelVersion: HEURISTIC_MODEL_VERSION,
+        modelVersion,
         candidateSources: item.sources,
         score: item.score,
+        featureSchemaVersion: RECOMMENDATION_FEATURE_SCHEMA_VERSION,
+        features: featuresByStory.get(item.story.id),
+        experimentArm,
       }
     }
 
@@ -87,7 +120,11 @@ export class RecommendationService {
       total,
       traces,
       debug: {
-        modelVersion: HEURISTIC_MODEL_VERSION,
+        modelVersion,
+        rankerMode,
+        experimentArm,
+        fallbackReason,
+        featureSchemaVersion: RECOMMENDATION_FEATURE_SCHEMA_VERSION,
         candidateCount: candidates.length,
         sourceCounts,
         session: {
@@ -144,6 +181,9 @@ export class RecommendationService {
               candidateSources: trace.candidateSources,
               modelVersion: trace.modelVersion,
               score: trace.score,
+              featureSchemaVersion: trace.featureSchemaVersion,
+              features: trace.features,
+              experimentArm: trace.experimentArm,
             }
           : null,
       }
@@ -153,7 +193,6 @@ export class RecommendationService {
       const { error } = await supabase.from('feed_exposures').insert(richRows as any)
       if (!error) return
 
-      // Backward-compatible fallback while environments roll out the Phase A migration.
       const legacyRows = storyIds.map((storyId, index) => ({
         user_id: userId,
         session_id: sessionId,
@@ -161,19 +200,14 @@ export class RecommendationService {
         story_id: storyId,
         position: startPosition + index,
       }))
-      const { error: fallbackError } = await supabase
-        .from('feed_exposures')
-        .insert(legacyRows as any)
+      const { error: fallbackError } = await supabase.from('feed_exposures').insert(legacyRows as any)
       if (fallbackError) throw fallbackError
     } catch (error) {
-      // Recommendation logging is best-effort and must never break feed delivery.
       console.warn('logFeedExposures failed', error)
     }
   }
 
-  private static async fetchStoryMetrics(
-    storyIds: string[]
-  ): Promise<Map<string, StoryMetrics>> {
+  private static async fetchStoryMetrics(storyIds: string[]): Promise<Map<string, StoryMetrics>> {
     const map = new Map<string, StoryMetrics>()
     if (!storyIds.length) return map
 
@@ -197,10 +231,7 @@ export class RecommendationService {
       completionRates.set(storyId, views > 0 ? completions / views : 0)
     }
 
-    const velocityByStory = new Map<
-      string,
-      { views: number; likes: number; completes: number }
-    >()
+    const velocityByStory = new Map<string, { views: number; likes: number; completes: number }>()
     for (const row of velocity || []) {
       velocityByStory.set((row as any).story_id as string, {
         views: Number((row as any).views_48h) || 0,
@@ -212,20 +243,14 @@ export class RecommendationService {
     for (const storyId of storyIds) {
       map.set(storyId, {
         completionRate: completionRates.get(storyId) || 0,
-        velocity: velocityByStory.get(storyId) || {
-          views: 0,
-          likes: 0,
-          completes: 0,
-        },
+        velocity: velocityByStory.get(storyId) || { views: 0, likes: 0, completes: 0 },
       })
     }
 
     return map
   }
 
-  private static async fetchCreatorAuthority(
-    creatorIds: string[]
-  ): Promise<Map<string, CreatorAuthority>> {
+  private static async fetchCreatorAuthority(creatorIds: string[]): Promise<Map<string, CreatorAuthority>> {
     const map = new Map<string, CreatorAuthority>()
     if (!creatorIds.length) return map
 
