@@ -10,6 +10,7 @@ export type RecommendationTrainingRow = {
   candidateSource: string | null
   servedModelVersion: string | null
   servedScore: number | null
+  experimentArm: 'control' | 'learned' | null
   featureSchemaVersion: string | null
   features: Record<string, number>
   watchRatio: number
@@ -137,6 +138,9 @@ export class TrainingDataService {
       const features = Object.fromEntries(
         Object.entries(trace.features || {}).map(([key, value]) => [key, Number(value) || 0])
       )
+      const arm = trace.experimentArm === 'control' || trace.experimentArm === 'learned'
+        ? trace.experimentArm
+        : null
 
       return {
         exposureId: exposure.id,
@@ -148,6 +152,7 @@ export class TrainingDataService {
         candidateSource: exposure.candidate_source || null,
         servedModelVersion: exposure.model_version || null,
         servedScore: exposure.served_score == null ? null : Number(exposure.served_score),
+        experimentArm: arm,
         featureSchemaVersion: trace.featureSchemaVersion || null,
         features,
         watchRatio,
