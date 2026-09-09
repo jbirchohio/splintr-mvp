@@ -23,6 +23,7 @@ export class RecommendationService {
     limit: number
     offset: number
     variant?: string | null
+    experimentArm?: 'control' | 'learned'
   }): Promise<{
     items: StoryRow[]
     total: number
@@ -35,13 +36,14 @@ export class RecommendationService {
       limit,
       offset,
       variant = null,
+      experimentArm = 'control',
     } = params
 
     const [signals, weights, exposureState, activeModel] = await Promise.all([
       UserFeatureService.build({ userId, sessionId }),
       RecsConfigService.getFypWeights(variant),
       ReRankingService.getExposureState({ userId, sessionId }),
-      ModelRegistryService.getActiveModel(),
+      experimentArm === 'learned' ? ModelRegistryService.getActiveModel() : Promise.resolve(null),
     ])
 
     const { candidates, sourceCounts } = await CandidateService.generate({ userId, signals })
@@ -66,7 +68,7 @@ export class RecommendationService {
     let rankerMode: 'learned' | 'heuristic' = 'heuristic'
     let fallbackReason: string | null = null
 
-    if (activeModel) {
+    if (experimentArm === 'learned' && activeModel) {
       try {
         ranked = LearnedRanker.rank({ candidates, featuresByStory, model: activeModel })
         modelVersion = activeModel.version
@@ -82,6 +84,7 @@ export class RecommendationService {
         })
       }
     } else {
+      if (experimentArm === 'learned' && !activeModel) fallbackReason = 'No active learned model'
       ranked = HeuristicRanker.rank({
         candidates,
         signals,
@@ -108,6 +111,7 @@ export class RecommendationService {
         score: item.score,
         featureSchemaVersion: RECOMMENDATION_FEATURE_SCHEMA_VERSION,
         features: featuresByStory.get(item.story.id),
+        experimentArm,
       }
     }
 
@@ -118,6 +122,7 @@ export class RecommendationService {
       debug: {
         modelVersion,
         rankerMode,
+        experimentArm,
         fallbackReason,
         featureSchemaVersion: RECOMMENDATION_FEATURE_SCHEMA_VERSION,
         candidateCount: candidates.length,
@@ -178,6 +183,7 @@ export class RecommendationService {
               score: trace.score,
               featureSchemaVersion: trace.featureSchemaVersion,
               features: trace.features,
+              experimentArm: trace.experimentArm,
             }
           : null,
       }
