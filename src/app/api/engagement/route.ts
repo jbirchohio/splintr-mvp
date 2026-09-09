@@ -1,24 +1,66 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { withSecurity } from '@/lib/security-middleware'
 import { withValidation } from '@/lib/validation-middleware'
 import { analyticsSchemas } from '@/lib/validation-schemas'
 import { createServerClient } from '@/lib/supabase'
 
+const recommendationEngagementSchema = analyticsSchemas.engagement.extend({
+  action: z.enum([
+    'view',
+    'like',
+    'share',
+    'comment',
+    'complete',
+    'dwell',
+    'skip',
+    'choice',
+    'continuation',
+    'replay',
+    'path_complete',
+    'alternate_ending',
+    'not_interested',
+    'report'
+  ])
+})
+
 export const POST = withSecurity(
-  withValidation({ bodySchema: analyticsSchemas.engagement, requireAuth: false })(async (req, { user }) => {
+  withValidation({ bodySchema: recommendationEngagementSchema, requireAuth: false })(async (req, { user }) => {
     try {
       const supabase = createServerClient()
       const body = await req.json()
       const userId = user?.id || null
-      const typeMap: Record<string, string> = { view: 'view', like: 'like', share: 'share', comment: 'comment', complete: 'complete', dwell: 'time_spent', skip: 'skip' }
+      const sessionId = req.headers.get('x-session-id') || null
+      const typeMap: Record<string, string> = {
+        view: 'view',
+        like: 'like',
+        share: 'share',
+        comment: 'comment',
+        complete: 'complete',
+        dwell: 'time_spent',
+        skip: 'skip',
+        choice: 'choice',
+        continuation: 'continuation',
+        replay: 'replay',
+        path_complete: 'path_complete',
+        alternate_ending: 'alternate_ending',
+        not_interested: 'not_interested',
+        report: 'report'
+      }
       const type = typeMap[body.action]
       if (!type) return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+
+      const metadata = {
+        ...(body.metadata || {}),
+        ...(sessionId ? { sessionId } : {})
+      }
+
       await (supabase as any).from('user_interactions' as any).insert({
         user_id: userId,
         story_id: body.contentType === 'story' ? body.contentId : null,
         type,
         value: typeof body.metadata?.value === 'number' ? body.metadata.value : null,
-        metadata: body.metadata || null
+        metadata
       })
       return NextResponse.json({ ok: true })
     } catch (e: any) {
