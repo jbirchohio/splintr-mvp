@@ -1,4 +1,5 @@
 import { createServerClient } from '@/lib/supabase'
+import { EmbeddingService } from './embedding.service'
 import {
   CandidateSource,
   RecommendationCandidate,
@@ -151,11 +152,22 @@ export class CandidateService {
   ): Promise<string[]> {
     try {
       const supabase = createServerClient() as any
-      const { data: rows, error } = await supabase
+      let { data: rows, error } = await supabase
         .from('user_embeddings')
         .select('embedding')
         .eq('user_id', userId)
         .limit(1)
+
+      if (!error && (!rows?.length || !rows[0]?.embedding)) {
+        await EmbeddingService.refreshUserEmbedding(userId).catch(() => false)
+        const refreshed = await supabase
+          .from('user_embeddings')
+          .select('embedding')
+          .eq('user_id', userId)
+          .limit(1)
+        rows = refreshed.data
+        error = refreshed.error
+      }
 
       if (error || !rows?.length || !rows[0]?.embedding) return []
 
@@ -173,8 +185,6 @@ export class CandidateService {
         .map((row: any) => row.story_id as string | null)
         .filter((id: string | null): id is string => Boolean(id))
     } catch {
-      // Embeddings are an optional candidate source. Cold start and pre-migration
-      // environments must continue through the existing retrieval sources.
       return []
     }
   }
