@@ -59,22 +59,38 @@ export class CandidateService {
       ? this.getCollaborativeStoryIds(userId, signals.engagedStoryIds)
       : Promise.resolve([] as string[])
 
-    const [recentRes, trendingRes, explorationRes, followingRes, collaborativeIds] =
-      await Promise.all([
-        recentPromise,
-        trendingPromise,
-        explorationPromise,
-        followingPromise,
-        collaborativeIdsPromise,
-      ])
+    const embeddingIdsPromise = userId
+      ? this.getEmbeddingStoryIds(userId, signals.engagedStoryIds)
+      : Promise.resolve([] as string[])
+
+    const [
+      recentRes,
+      trendingRes,
+      explorationRes,
+      followingRes,
+      collaborativeIds,
+      embeddingIds,
+    ] = await Promise.all([
+      recentPromise,
+      trendingPromise,
+      explorationPromise,
+      followingPromise,
+      collaborativeIdsPromise,
+      embeddingIdsPromise,
+    ])
 
     const firstError =
       recentRes.error || trendingRes.error || explorationRes.error || followingRes.error
     if (firstError) throw firstError
 
-    const collaborative = collaborativeIds.length
-      ? await this.fetchStoriesByIds(collaborativeIds.slice(0, 250))
-      : []
+    const [collaborative, embedding] = await Promise.all([
+      collaborativeIds.length
+        ? this.fetchStoriesByIds(collaborativeIds.slice(0, 250))
+        : Promise.resolve([] as StoryRow[]),
+      embeddingIds.length
+        ? this.fetchStoriesByIds(embeddingIds.slice(0, 250))
+        : Promise.resolve([] as StoryRow[]),
+    ])
 
     const merged = new Map<string, RecommendationCandidate>()
     const sourceCounts: Record<CandidateSource, number> = {
@@ -82,6 +98,7 @@ export class CandidateService {
       trending: 0,
       following: 0,
       collaborative: 0,
+      embedding: 0,
       exploration: 0,
     }
 
@@ -101,6 +118,7 @@ export class CandidateService {
     add((trendingRes.data || []) as StoryRow[], 'trending')
     add((followingRes.data || []) as StoryRow[], 'following')
     add(collaborative, 'collaborative')
+    add(embedding, 'embedding')
     add((explorationRes.data || []) as StoryRow[], 'exploration')
 
     return {
@@ -125,6 +143,40 @@ export class CandidateService {
 
     const byId = new Map(((data || []) as StoryRow[]).map(story => [story.id, story]))
     return ids.map(id => byId.get(id)).filter((story): story is StoryRow => Boolean(story))
+  }
+
+  private static async getEmbeddingStoryIds(
+    userId: string,
+    engagedStoryIds: Set<string>
+  ): Promise<string[]> {
+    try {
+      const supabase = createServerClient() as any
+      const { data: rows, error } = await supabase
+        .from('user_embeddings')
+        .select('embedding')
+        .eq('user_id', userId)
+        .limit(1)
+
+      if (error || !rows?.length || !rows[0]?.embedding) return []
+
+      const { data: matches, error: matchError } = await supabase.rpc(
+        'match_story_embeddings',
+        {
+          query_embedding: rows[0].embedding,
+          match_count: 250,
+          exclude_story_ids: Array.from(engagedStoryIds).slice(0, 500),
+        }
+      )
+
+      if (matchError || !matches) return []
+      return matches
+        .map((row: any) => row.story_id as string | null)
+        .filter((id: string | null): id is string => Boolean(id))
+    } catch {
+      // Embeddings are an optional candidate source. Cold start and pre-migration
+      // environments must continue through the existing retrieval sources.
+      return []
+    }
   }
 
   private static async getCollaborativeStoryIds(
@@ -173,7 +225,14 @@ export class CandidateService {
       like: 3,
       time_spent: 2,
       view: 1,
+      choice: 2,
+      continuation: 4,
+      replay: 5,
+      path_complete: 5,
+      alternate_ending: 5,
       skip: -2,
+      not_interested: -6,
+      report: -10,
     }
     const scores = new Map<string, number>()
 
