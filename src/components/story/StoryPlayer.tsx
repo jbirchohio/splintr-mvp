@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { VideoPlayer } from './VideoPlayer'
+import { VideoPlayer, VideoPlaybackMetric } from './VideoPlayer'
 import { StoryNavigationControls } from './StoryNavigationControls'
 import { StoryInfoOverlay } from './StoryInfoOverlay'
 import { ReplayControls } from './ReplayControls'
@@ -64,6 +64,8 @@ export function StoryPlayer({
   const nodeStartedAtRef = useRef<number>(Date.now())
   const lastCompletedSessionRef = useRef<string | null>(null)
   const replayCountRef = useRef(0)
+  const watchMetricRef = useRef<VideoPlaybackMetric | null>(null)
+  const lastWatchLabelNodeRef = useRef<string | null>(null)
 
   const {
     currentAchievement,
@@ -90,6 +92,8 @@ export function StoryPlayer({
 
   useEffect(() => {
     nodeStartedAtRef.current = Date.now()
+    watchMetricRef.current = null
+    lastWatchLabelNodeRef.current = null
   }, [state.currentNodeId])
 
   useEffect(() => {
@@ -114,12 +118,64 @@ export function StoryPlayer({
     loadVideo()
   }, [state.currentNode?.videoId, onError, onVideoLoaded])
 
+  const handlePlaybackMetric = useCallback((metric: VideoPlaybackMetric) => {
+    const existing = watchMetricRef.current
+    if (!existing || metric.watchMs >= existing.watchMs || metric.completed) {
+      watchMetricRef.current = metric
+    }
+  }, [])
+
+  const recordWatchExit = useCallback((reason: string, completedNode: boolean) => {
+    const metric = watchMetricRef.current
+    const nodeId = state.currentNodeId
+    if (!metric || !nodeId || lastWatchLabelNodeRef.current === nodeId) return
+
+    lastWatchLabelNodeRef.current = nodeId
+    const fastSkip = !completedNode && metric.watchMs < 3000 && metric.watchRatio < 0.2
+
+    RecommendationTelemetryService.track({
+      storyId,
+      action: 'dwell',
+      sessionId: state.sessionId,
+      metadata: {
+        nodeId,
+        pathDepth: navigation.currentPath.length,
+        watchMs: metric.watchMs,
+        durationMs: metric.durationMs,
+        watchRatio: metric.watchRatio,
+        completedNode,
+        playbackCompleted: metric.completed,
+        exitReason: reason,
+        fastSkip
+      }
+    })
+
+    if (fastSkip) {
+      RecommendationTelemetryService.track({
+        storyId,
+        action: 'skip',
+        sessionId: state.sessionId,
+        metadata: {
+          nodeId,
+          pathDepth: navigation.currentPath.length,
+          watchMs: metric.watchMs,
+          durationMs: metric.durationMs,
+          watchRatio: metric.watchRatio,
+          exitReason: reason,
+          fastSkip: true
+        }
+      })
+    }
+  }, [navigation.currentPath.length, state.currentNodeId, state.sessionId, storyId])
+
   useEffect(() => {
     if (!state.isComplete || !state.sessionId) return
     if (lastCompletedSessionRef.current === state.sessionId) return
     lastCompletedSessionRef.current = state.sessionId
 
+    recordWatchExit('path_complete', true)
     const analytics = getAnalytics()
+
     RecommendationTelemetryService.track({
       storyId,
       action: 'path_complete',
@@ -156,12 +212,14 @@ export function StoryPlayer({
 
     onComplete?.(analytics)
     setShowRestartPrompt(true)
-  }, [state.isComplete, state.sessionId, storyId, getAnalytics, onComplete, explorationData])
+  }, [state.isComplete, state.sessionId, storyId, getAnalytics, onComplete, explorationData, recordWatchExit])
 
   const handleChoiceSelect = useCallback((choice: Choice) => {
     const currentNode = state.currentNode
     const choiceLatencyMs = Math.max(0, Date.now() - nodeStartedAtRef.current)
     const nextNodeId = choice.nextNodeId || null
+
+    recordWatchExit('choice', true)
 
     RecommendationTelemetryService.track({
       storyId,
@@ -204,9 +262,11 @@ export function StoryPlayer({
     }
 
     controls.selectChoice(choice.id)
-  }, [controls, navigation.currentPath.length, state.currentNode, state.currentNodeId, state.sessionId, storyId])
+  }, [controls, navigation.currentPath.length, recordWatchExit, state.currentNode, state.currentNodeId, state.sessionId, storyId])
 
   const handleVideoEnd = useCallback(() => {
+    recordWatchExit('video_end', true)
+
     RecommendationTelemetryService.track({
       storyId,
       action: 'complete',
@@ -224,9 +284,10 @@ export function StoryPlayer({
       onComplete?.(analytics)
       setShowRestartPrompt(true)
     }
-  }, [state.currentNode, state.currentNodeId, state.sessionId, navigation.currentPath.length, storyId, getAnalytics, onComplete])
+  }, [recordWatchExit, state.currentNode, state.currentNodeId, state.sessionId, navigation.currentPath.length, storyId, getAnalytics, onComplete])
 
   const handleRestart = useCallback(() => {
+    recordWatchExit('restart', false)
     replayCountRef.current += 1
     RecommendationTelemetryService.track({
       storyId,
@@ -240,9 +301,10 @@ export function StoryPlayer({
     })
     setShowRestartPrompt(false)
     controls.restart()
-  }, [controls, navigation.currentPath.length, state.sessionId, storyId])
+  }, [controls, navigation.currentPath.length, recordWatchExit, state.sessionId, storyId])
 
   const handleReplayPath = useCallback((path: string[]) => {
+    recordWatchExit('replay_path', false)
     replayCountRef.current += 1
     RecommendationTelemetryService.track({
       storyId,
@@ -258,14 +320,15 @@ export function StoryPlayer({
     setShowRestartPrompt(false)
     setShowPathExplorer(false)
     controls.replayPath(path)
-  }, [controls, navigation.currentPath, state.sessionId, storyId])
+  }, [controls, navigation.currentPath, recordWatchExit, state.sessionId, storyId])
 
   const handleGoBack = useCallback(() => {
     if (navigation.canGoBack && navigation.currentPath.length > 1) {
+      recordWatchExit('back_navigation', false)
       const previousNodeId = navigation.currentPath[navigation.currentPath.length - 2]
       controls.goToNode(previousNodeId)
     }
-  }, [navigation, controls])
+  }, [navigation, controls, recordWatchExit])
 
   const handleChoiceSuggestion = useCallback((choice: Choice) => {
     controls.selectChoice(choice.id)
@@ -278,10 +341,7 @@ export function StoryPlayer({
           <div className="text-xl mb-4">⚠️</div>
           <div className="text-lg mb-2">Failed to load story</div>
           <div className="text-sm opacity-75 mb-4">{typeof error === 'string' ? error : error instanceof Error ? error.message : 'Unknown error'}</div>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors"
-          >
+          <button onClick={() => window.location.reload()} className="px-4 py-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors">
             Retry
           </button>
         </div>
@@ -307,6 +367,7 @@ export function StoryPlayer({
         choices={state.currentNode?.choices || []}
         onVideoEnd={handleVideoEnd}
         onChoiceSelect={handleChoiceSelect}
+        onPlaybackMetric={handlePlaybackMetric}
         autoPlay={autoStart}
         muted={muted}
         externalPaused={paused}
@@ -378,22 +439,13 @@ export function StoryPlayer({
             )}
 
             <div className="flex space-x-3">
-              <button
-                onClick={handleRestart}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg"
-              >
+              <button onClick={handleRestart} className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg">
                 Explore Again
               </button>
-              <button
-                onClick={() => setShowPathExplorer(true)}
-                className="flex-1 px-6 py-3 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 transform hover:scale-105 transition-all duration-200"
-              >
+              <button onClick={() => setShowPathExplorer(true)} className="flex-1 px-6 py-3 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 transform hover:scale-105 transition-all duration-200">
                 View Paths
               </button>
-              <button
-                onClick={() => setShowRestartPrompt(false)}
-                className="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transform hover:scale-105 transition-all duration-200"
-              >
+              <button onClick={() => setShowRestartPrompt(false)} className="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transform hover:scale-105 transition-all duration-200">
                 Close
               </button>
             </div>
