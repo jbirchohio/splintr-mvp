@@ -92,8 +92,13 @@ export class HeuristicRanker {
           }
         }
 
-        // Retrieval source is useful information even before the learned ranker exists.
-        // Keep these deliberately small so retrieval does not become another hard-coded ranker.
+        // Candidate-source boosts are intentionally tiny. Retrieval decides what is
+        // eligible; the ranker still decides what should win. A learned ranker can
+        // later consume similarity and source features directly.
+        if (sources.includes('embedding')) {
+          score += 0.5
+          reasons.push('source:embedding')
+        }
         if (sources.includes('collaborative')) {
           score += 0.35
           reasons.push('source:collaborative')
