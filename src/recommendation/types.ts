@@ -3,6 +3,7 @@ export type CandidateSource =
   | 'trending'
   | 'following'
   | 'collaborative'
+  | 'embedding'
   | 'exploration'
 
 export type StoryRow = {
@@ -56,4 +57,4 @@ export type RecommendationTrace = {
   score: number
 }
 
-export const HEURISTIC_MODEL_VERSION = 'heuristic-phase-a-v1'
+export const HEURISTIC_MODEL_VERSION = 'heuristic-phase-b-v1'
